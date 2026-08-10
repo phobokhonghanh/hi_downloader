@@ -29,6 +29,10 @@ if getattr(sys, 'frozen', False):
 else:
     base_path = os.path.dirname(os.path.abspath(__file__))
 
+# Tự động nạp base_path (thư mục sys._MEIPASS khi đóng gói 1 file exe) vào PATH để yt-dlp tự động nhận diện ffmpeg/ffprobe nhúng sẵn
+if base_path not in os.environ.get("PATH", ""):
+    os.environ["PATH"] = base_path + os.pathsep + os.environ.get("PATH", "")
+
 STATIC_DIR = os.path.join(base_path, "static")
 DOWNLOAD_DIR = os.path.abspath("./downloads")
 
@@ -224,8 +228,9 @@ def clean_url(url: str) -> str:
 
 def check_ffmpeg():
     in_path = shutil.which("ffmpeg") is not None
+    in_base_dir = os.path.exists(os.path.join(base_path, "ffmpeg.exe")) or os.path.exists(os.path.join(base_path, "ffmpeg"))
     in_exe_dir = os.path.exists(os.path.join(EXE_DIR, "ffmpeg.exe")) or os.path.exists(os.path.join(EXE_DIR, "ffmpeg"))
-    return in_path or in_exe_dir
+    return in_path or in_base_dir or in_exe_dir
 
 def get_rotational_proxy() -> Optional[str]:
     proxy_file = os.path.join(EXE_DIR, "proxies.txt")

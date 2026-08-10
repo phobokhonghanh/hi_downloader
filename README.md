@@ -132,20 +132,20 @@ python run_tests.py
 
 ---
 
-## 5. HƯỚNG DẪN ĐÓNG GÓI RA FILE CHẠY (.EXE CHO WINDOWS)
+## 5. HƯỚNG DẪN ĐÓNG GÓI RA DỰ ÁN 1 FILE CHẠY DUY NHẤT (.EXE TRỌN GÓI FOR WINDOWS)
 
-Để tạo ra file chạy độc lập `.exe` không phụ thuộc vào Python cho môi trường Windows, bạn thực hiện các bước sau trên máy Windows:
+Để tạo ra đúng **1 file `.exe` duy nhất trọn gói** (đã nhúng sẵn Python, Giao diện Web, FFmpeg & FFprobe) để người dùng cuối trên Windows chỉ cần nhấp đúp là dùng ngay mà **KHÔNG CẦN CÀI BẤT KỲ CÁI GÌ KHÁC**:
 
-1. Kích hoạt môi trường ảo và cài đặt PyInstaller:
+1. Đặt 2 file `ffmpeg.exe` và `ffprobe.exe` vào thư mục dự án `hi_downloader/`.
+2. Kích hoạt môi trường ảo `venv` và cài đặt PyInstaller:
    ```cmd
    pip install pyinstaller
    ```
-2. Thực hiện lệnh đóng gói (chú ý sử dụng dấu chấm phẩy `;` cho tham số `--add-data`):
+3. Chạy lệnh đóng gói trọn gói 1 file duy nhất:
    ```cmd
-   pyinstaller --noconfirm --onefile --add-data "static;static" run_app.py
+   pyinstaller --noconfirm --onefile --name "hi_downloader" --add-data "static;static" --add-binary "ffmpeg.exe;." --add-binary "ffprobe.exe;." run_app.py
    ```
-3. File chạy `run_app.exe` sẽ được tạo ra tại thư mục `dist/`.
-4. Để người dùng cuối có thể tải 4K tiện lợi mà không cần cài FFmpeg vào máy, hãy copy file `ffmpeg.exe` và `ffprobe.exe` đặt vào **cùng thư mục** với file `run_app.exe`.
+4. Thành quả: File **`hi_downloader.exe`** độc lập duy nhất được tạo ra tại thư mục `dist/`. Bạn chỉ cần gửi đúng **1 file `hi_downloader.exe` này** cho người dùng cuối là họ có thể sử dụng mượt mà 100%!
 
 ---
 
