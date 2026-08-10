@@ -1,0 +1,9 @@
+# Danh sách proxy xoay vòng của bạn (Mỗi dòng một địa chỉ dạng host:port)
+# Ví dụ:
+# 127.0.0.1:8080
+# 192.168.1.100:3128
+#
+# Hệ thống sẽ tự động bỏ qua các dòng bắt đầu bằng dấu # hoặc để trống.
+92.112.238.219:7098
+92.112.235.232:6755
+104.252.71.19:5947

@@ -1,0 +1,27 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Large Binaries & Downloads
+ffmpeg
+ffprobe
+*.exe
+downloads/
+test_downloads/
+
+# Python Cache & Logs
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+hi_downloader.log
+
+# Environment & Private Configs
+.env
+config.json
+scratch/
+
+# OS junk
+.DS_Store
+Thumbs.db
