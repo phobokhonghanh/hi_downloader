@@ -11,8 +11,8 @@ for env_var in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"]:
     if env_var in os.environ:
         del os.environ[env_var]
 
-# Thêm thư mục hiện tại vào PATH để import app
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Thêm thư mục gốc dự án vào PATH để import app
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
 from app import app
 import uvicorn
 

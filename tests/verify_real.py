@@ -7,7 +7,8 @@ for env_var in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"]:
     if env_var in os.environ:
         del os.environ[env_var]
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Thêm thư mục gốc dự án vào PATH để import app
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
 from app import clean_url, check_ffmpeg
 import yt_dlp
 
@@ -23,7 +24,7 @@ def verify():
     test_dir = "./downloads/test_verify"
     os.makedirs(test_dir, exist_ok=True)
     
-    project_dir = os.path.dirname(os.path.abspath(__file__))
+    project_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
     has_ffmpeg_file = os.path.exists(os.path.join(project_dir, "ffmpeg.exe")) or os.path.exists(os.path.join(project_dir, "ffmpeg"))
     
     ydl_opts = {

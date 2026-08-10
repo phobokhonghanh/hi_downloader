@@ -1,23 +1,34 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bilibili 4K Downloader</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
     <style>
         :root {
-            --bg-color: #f8fafc; /* Nền xám xanh cực nhẹ, sang trọng */
-            --panel-bg: #ffffff; /* Trắng tinh khiết */
-            --panel-border: #e2e8f0; /* Đường viền nhẹ tinh tế */
-            --primary: #2563eb; /* Xanh Royal Blue hiện đại */
+            --bg-color: #f8fafc;
+            /* Nền xám xanh cực nhẹ, sang trọng */
+            --panel-bg: #ffffff;
+            /* Trắng tinh khiết */
+            --panel-border: #e2e8f0;
+            /* Đường viền nhẹ tinh tế */
+            --primary: #2563eb;
+            /* Xanh Royal Blue hiện đại */
             --primary-hover: #1d4ed8;
-            --text-color: #0f172a; /* Chữ tối màu chuyên nghiệp */
-            --text-muted: #64748b; /* Chữ xám */
+            --text-color: #0f172a;
+            /* Chữ tối màu chuyên nghiệp */
+            --text-muted: #64748b;
+            /* Chữ xám */
             --input-bg: #f8fafc;
             --input-border: #cbd5e1;
-            --terminal-bg: #f1f5f9; /* Terminal nền xám nhạt */
-            --border-radius: 4px; /* Bo góc cực nhẹ đồng bộ */
+            --terminal-bg: #f1f5f9;
+            /* Terminal nền xám nhạt */
+            --border-radius: 4px;
+            /* Bo góc cực nhẹ đồng bộ */
         }
 
         * {
@@ -126,7 +137,9 @@
             align-items: center;
         }
 
-        input[type="text"], input[type="number"], select {
+        input[type="text"],
+        input[type="number"],
+        select {
             width: 100%;
             padding: 11px 14px;
             background: var(--input-bg);
@@ -138,7 +151,9 @@
             transition: all 0.15s ease-in-out;
         }
 
-        input[type="text"]:focus, input[type="number"]:focus, select:focus {
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        select:focus {
             border-color: var(--primary);
             background-color: #fff;
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
@@ -158,6 +173,7 @@
             justify-content: center;
             transition: all 0.15s ease;
         }
+
         .btn-folder-select:hover {
             border-color: var(--primary);
             background-color: rgba(37, 99, 235, 0.05);
@@ -186,6 +202,7 @@
             border: 1px solid var(--primary);
             color: var(--primary);
         }
+
         .btn-outline-blue:hover {
             background: rgba(37, 99, 235, 0.05);
         }
@@ -194,6 +211,7 @@
             background: var(--primary);
             border: 1px solid var(--primary);
         }
+
         .btn-solid-blue:hover {
             background: var(--primary-hover);
         }
@@ -210,6 +228,7 @@
             border-radius: var(--border-radius);
             transition: all 0.15s;
         }
+
         .btn-small-cancel:hover {
             background: rgba(239, 68, 68, 0.05);
         }
@@ -226,6 +245,7 @@
             border-radius: var(--border-radius);
             transition: all 0.15s;
         }
+
         .btn-small-copy:hover {
             background: rgba(37, 99, 235, 0.05);
         }
@@ -242,6 +262,7 @@
             border-radius: var(--border-radius);
             transition: all 0.15s;
         }
+
         .btn-small-folder:hover {
             background: rgba(16, 185, 129, 0.08);
         }
@@ -268,6 +289,7 @@
             display: flex;
             gap: 12px;
         }
+
         .flex-row .form-group {
             flex: 1;
         }
@@ -313,12 +335,35 @@
             font-weight: 700;
         }
 
-        .status-downloading { background: rgba(37, 99, 235, 0.08); color: #2563eb; }
-        .status-merging { background: rgba(147, 51, 234, 0.08); color: #9333ea; }
-        .status-completed { background: rgba(22, 163, 74, 0.08); color: #16a34a; }
-        .status-failed { background: rgba(220, 38, 38, 0.08); color: #dc2626; }
-        .status-pending { background: rgba(217, 119, 6, 0.08); color: #d97706; }
-        .status-canceled { background: rgba(100, 116, 139, 0.08); color: #64748b; }
+        .status-downloading {
+            background: rgba(37, 99, 235, 0.08);
+            color: #2563eb;
+        }
+
+        .status-merging {
+            background: rgba(147, 51, 234, 0.08);
+            color: #9333ea;
+        }
+
+        .status-completed {
+            background: rgba(22, 163, 74, 0.08);
+            color: #16a34a;
+        }
+
+        .status-failed {
+            background: rgba(220, 38, 38, 0.08);
+            color: #dc2626;
+        }
+
+        .status-pending {
+            background: rgba(217, 119, 6, 0.08);
+            color: #d97706;
+        }
+
+        .status-canceled {
+            background: rgba(100, 116, 139, 0.08);
+            color: #64748b;
+        }
 
         .progress-track {
             width: 100%;
@@ -395,6 +440,7 @@
             z-index: 10;
             transition: all 0.2s ease;
         }
+
         .btn-scroll-bottom:hover {
             transform: translateY(-2px) scale(1.05);
             box-shadow: 0 6px 16px rgba(37, 99, 235, 0.45);
@@ -402,9 +448,10 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
-        
+
         <!-- HEADER -->
         <header style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
             <div class="header-title-group">
@@ -412,12 +459,18 @@
                 <div class="sub">Hệ thống trích xuất và tải luồng đa tuyến</div>
             </div>
             <div class="header-dir-group" style="display: flex; align-items: center; gap: 8px;">
-                <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); white-space: nowrap;">THƯ MỤC LƯU:</label>
+                <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); white-space: nowrap;">THƯ
+                    MỤC LƯU:</label>
                 <div class="input-group" style="display: flex; align-items: center; gap: 4px;">
-                    <input type="text" id="custom-output-dir" readonly style="width: 220px; font-size: 0.72rem; padding: 6px 10px; background: #f1f5f9;" placeholder="Chọn thư mục..." title="">
-                    <button type="button" class="btn-folder-select" id="btn-select-dir" title="Chọn thư mục từ hệ thống" style="padding: 5px 8px;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    <input type="text" id="custom-output-dir" readonly
+                        style="width: 220px; font-size: 0.72rem; padding: 6px 10px; background: #f1f5f9;"
+                        placeholder="Chọn thư mục..." title="">
+                    <button type="button" class="btn-folder-select" id="btn-select-dir" title="Chọn thư mục từ hệ thống"
+                        style="padding: 5px 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z">
+                            </path>
                         </svg>
                     </button>
                 </div>
@@ -426,7 +479,7 @@
 
         <!-- APP GRID CONTENT -->
         <div class="app-grid">
-            
+
             <!-- LEFT PANEL: DOWNLOAD SETTINGS -->
             <div class="panel">
                 <div class="panel-header">
@@ -435,18 +488,21 @@
 
                 <div class="form-group">
                     <label for="url">Đường dẫn URL Bilibili</label>
-                    <input type="text" id="url" required placeholder="Dán link video (BV...) hoặc link trang cá nhân (Space)...">
+                    <input type="text" id="url" required
+                        placeholder="Dán link video (BV...) hoặc link trang cá nhân (Space)...">
                 </div>
 
-                <button type="button" class="btn btn-outline-blue" id="btn-analyze" style="margin-bottom: 20px;">Tìm kiếm</button>
+                <button type="button" class="btn btn-outline-blue" id="btn-analyze" style="margin-bottom: 20px;">Tìm
+                    kiếm</button>
 
                 <!-- KẾT QUẢ PHÂN TÍCH (Chỉ hiện khi phân tích thành công) -->
                 <div class="analysis-box" id="analysis-box">
-                    <div class="panel-header" id="analysis-title" style="margin-bottom: 10px; color: var(--primary); font-size: 0.78rem; border-bottom: none; padding-bottom: 0;">
+                    <div class="panel-header" id="analysis-title"
+                        style="margin-bottom: 10px; color: var(--primary); font-size: 0.78rem; border-bottom: none; padding-bottom: 0;">
                         Thông tin phân tích
                     </div>
                     <div class="analysis-summary" id="analysis-summary"></div>
-                    
+
                     <!-- Cho Video Đơn lẻ -->
                     <div class="form-group" id="quality-selector-group" style="display: none;">
                         <label for="quality-select">Chọn chất lượng video muốn tải</label>
@@ -467,7 +523,8 @@
                         </div>
                         <div class="form-group" style="margin-top: 8px;">
                             <label for="max-videos">Số lượng video muốn tải (tùy chọn)</label>
-                            <input type="number" id="max-videos" min="1" placeholder="Ví dụ: 10 (để trống để tải hết trang)">
+                            <input type="number" id="max-videos" min="1"
+                                placeholder="Ví dụ: 10 (để trống để tải hết trang)">
                         </div>
                     </div>
 
@@ -479,19 +536,25 @@
             <div class="panel">
                 <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
                     <span>2. Hàng chờ tải (Queue)</span>
-                    <button type="button" class="btn-small-folder" onclick="clearQueue()" style="color: #64748b; border-color: #cbd5e1; text-transform: lowercase;">xóa hàng chờ</button>
+                    <button type="button" class="btn-small-folder" onclick="clearQueue()"
+                        style="color: #64748b; border-color: #cbd5e1; text-transform: lowercase;">xóa hàng chờ</button>
                 </div>
-                <div class="queue-stats-bar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace; font-weight: 700; border-bottom: 1px dashed var(--panel-border); padding-bottom: 8px;">
+                <div class="queue-stats-bar"
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace; font-weight: 700; border-bottom: 1px dashed var(--panel-border); padding-bottom: 8px;">
                     <div style="display: flex; gap: 12px;">
-                        <span style="color: #6b7280;">waiting: <span id="stat-waiting" style="color: #6b7280;">0</span></span>
+                        <span style="color: #6b7280;">waiting: <span id="stat-waiting"
+                                style="color: #6b7280;">0</span></span>
+                        <span style="color: #ca8a04;">running: <span id="stat-running"
+                                style="color: #ca8a04;">0</span></span>
                         <span style="color: #16a34a;">done: <span id="stat-done" style="color: #16a34a;">0</span></span>
-                        <span style="color: #ca8a04;">running: <span id="stat-running" style="color: #ca8a04;">0</span></span>
-                        <span style="color: #dc2626;">error: <span id="stat-error" style="color: #dc2626;">0</span></span>
+                        <span style="color: #dc2626;">error: <span id="stat-error"
+                                style="color: #dc2626;">0</span></span>
                     </div>
                     <span id="queue-total-time" style="color: #000000;">0s</span>
                 </div>
                 <div class="task-list" id="tasks-container">
-                    <div style="text-align: center; color: var(--text-muted); font-size: 0.78rem; padding-top: 40px;" id="queue-empty-msg">
+                    <div style="text-align: center; color: var(--text-muted); font-size: 0.78rem; padding-top: 40px;"
+                        id="queue-empty-msg">
                         Hàng chờ trống. Vui lòng thêm video để bắt đầu.
                     </div>
                 </div>
@@ -503,13 +566,21 @@
         <div class="terminal-panel" style="position: relative;">
             <div class="terminal-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <span>Nhật ký hệ thống thời gian thực</span>
-                <button type="button" class="btn-small-folder" onclick="copyLogs()" style="color: #475569; border-color: #cbd5e1; text-transform: lowercase;">sao chép log</button>
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" class="btn-small-folder" onclick="clearLogs()"
+                        style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3); text-transform: lowercase;">xóa
+                        log</button>
+                    <button type="button" class="btn-small-folder" onclick="copyLogs()"
+                        style="color: #475569; border-color: #cbd5e1; text-transform: lowercase;">sao chép log</button>
+                </div>
             </div>
             <div class="terminal-body" id="terminal-body">
                 <div class="terminal-line">[LOG] Hệ thống đang sẵn sàng...</div>
             </div>
-            <button type="button" id="btn-scroll-bottom" class="btn-scroll-bottom" title="Cuộn xuống log mới nhất" style="display: none;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <button type="button" id="btn-scroll-bottom" class="btn-scroll-bottom" title="Cuộn xuống log mới nhất"
+                style="display: none;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
             </button>
@@ -521,18 +592,18 @@
         const btnAnalyze = document.getElementById('btn-analyze');
         const btnDownload = document.getElementById('btn-download');
         const btnSelectDir = document.getElementById('btn-select-dir');
-        
+
         const analysisBox = document.getElementById('analysis-box');
         const analysisTitle = document.getElementById('analysis-title');
         const analysisSummary = document.getElementById('analysis-summary');
-        
+
         const qualitySelectorGroup = document.getElementById('quality-selector-group');
         const qualitySelect = document.getElementById('quality-select');
-        
+
         const spacePagesGroup = document.getElementById('space-pages-group');
         const pageStart = document.getElementById('page-start');
         const pageEnd = document.getElementById('page-end');
-        
+
         const tasksContainer = document.getElementById('tasks-container');
         const queueEmptyMsg = document.getElementById('queue-empty-msg');
         const customOutputDir = document.getElementById('custom-output-dir');
@@ -611,7 +682,7 @@
                     try {
                         const err = await res.json();
                         errMsg = err.message || err.detail || JSON.stringify(err);
-                    } catch(e) {
+                    } catch (e) {
                         errMsg = await res.text();
                     }
                     alert("Không thể chọn thư mục: " + errMsg);
@@ -630,7 +701,7 @@
                 alert("Vui lòng nhập đường dẫn video!");
                 return;
             }
-            
+
             btnAnalyze.textContent = "Đang tìm kiếm...";
             btnAnalyze.disabled = true;
             analysisBox.style.display = 'none';
@@ -650,16 +721,16 @@
                     currentAnalyzedUrl = url;
                     currentAnalyzedType = data.type;
                     currentWorkingBrowser = data.working_browser;
-                    
+
                     analysisBox.style.display = 'block';
-                    
+
                     if (data.type === 'video') {
                         analysisTitle.textContent = "KẾT QUẢ PHÂN TÍCH: VIDEO";
                         analysisSummary.innerHTML = `TIÊU ĐỀ: ${data.title}<br>KÊNH: ${data.uploader}`;
-                        
+
                         qualitySelectorGroup.style.display = 'block';
                         spacePagesGroup.style.display = 'none';
-                        
+
                         qualitySelect.innerHTML = '';
                         data.qualities.forEach(q => {
                             const opt = document.createElement('option');
@@ -670,7 +741,7 @@
                     } else if (data.type === 'space') {
                         analysisTitle.textContent = "KẾT QUẢ PHÂN TÍCH: SPACE PROFILE";
                         analysisSummary.innerHTML = `KÊNH/PROFILE: ${data.title}<br>TỔNG VIDEO: ${data.total_videos} videos (${data.total_pages} trang)`;
-                        
+
                         qualitySelectorGroup.style.display = 'none';
                         spacePagesGroup.style.display = 'block';
                         pageStart.max = data.total_pages;
@@ -727,7 +798,7 @@
             }
         });
 
-        window.copyLogs = function() {
+        window.copyLogs = function () {
             const lines = Array.from(document.querySelectorAll('.terminal-line')).map(el => el.textContent);
             if (lines.length === 0) {
                 alert("Nhật ký trống.");
@@ -740,7 +811,7 @@
             });
         };
 
-        window.clearQueue = async function() {
+        window.clearQueue = async function () {
             try {
                 await fetch('/api/tasks/clear', { method: 'POST' });
                 updateTasks();
@@ -750,7 +821,7 @@
             }
         };
 
-        window.cancelTask = async function(taskId) {
+        window.cancelTask = async function (taskId) {
             if (!confirm("Hủy tiến trình tải này?")) return;
             try {
                 await fetch(`/api/tasks/${taskId}/cancel`, { method: 'POST' });
@@ -760,7 +831,7 @@
             }
         };
 
-        window.openFolder = async function(taskId) {
+        window.openFolder = async function (taskId) {
             try {
                 const res = await fetch(`/api/tasks/${taskId}/open-folder`, { method: 'POST' });
                 if (!res.ok) {
@@ -772,7 +843,7 @@
             }
         };
 
-        window.copyErrorText = function(btn, taskId) {
+        window.copyErrorText = function (btn, taskId) {
             const task = allTasks.find(t => t.id === taskId);
             if (task && task.error) {
                 const cleanMsg = task.error.replace(/\u001b\[[0-9;]*m/g, "");
@@ -791,7 +862,7 @@
                 const res = await fetch('/api/tasks');
                 const tasks = await res.json();
                 allTasks = tasks;
-                
+
                 let waitingCount = 0;
                 let doneCount = 0;
                 let runningCount = 0;
@@ -803,7 +874,7 @@
                     else if (t.status === 'completed') doneCount++;
                     else if (t.status === 'downloading' || t.status === 'merging') runningCount++;
                     else if (t.status === 'failed') errorCount++;
-                    
+
                     totalTime += t.elapsed_time || 0;
                 });
 
@@ -821,16 +892,16 @@
                     tasksContainer.appendChild(queueEmptyMsg);
                     return;
                 }
-                
+
                 tasksContainer.innerHTML = '';
                 tasksContainer.appendChild(queueEmptyMsg);
-                
+
                 tasks.forEach(task => {
                     const card = document.createElement('div');
                     card.className = 'task-card';
-                    
+
                     const title = task.filename || task.url;
-                    
+
                     let statusLabel = task.status;
                     if (task.status === 'merging') statusLabel = 'merging';
                     else if (task.status === 'downloading') statusLabel = 'downloading';
@@ -859,7 +930,7 @@
                     } else {
                         metaInfo = `<div>${statusLabel}, ${task.progress}%, ${task.elapsed_time}s</div>`;
                     }
-                    
+
                     card.innerHTML = `
                         <div class="task-card-header">
                             <div class="task-title" title="${title}">${title}</div>
@@ -882,26 +953,45 @@
             }
         }
 
+        async function clearLogs() {
+            try {
+                await fetch('/api/logs/clear', { method: 'POST' });
+                terminalBody.innerHTML = '<div class="terminal-line" style="color: var(--text-muted);">[LOG] Đã xóa toàn bộ nhật ký.</div>';
+            } catch (err) {
+                console.error("Lỗi xóa log:", err);
+            }
+        }
+
         async function updateLogs() {
             try {
                 const res = await fetch('/api/logs');
                 const logs = await res.json();
-                
+
                 const wasAtBottom = !userIsScrolledUp;
-                
+
                 terminalBody.innerHTML = '';
-                if (logs.length === 0) {
-                    terminalBody.innerHTML = '<div class="terminal-line">[LOG] Hệ thống đang chạy...</div>';
+                if (!logs || logs.length === 0) {
+                    terminalBody.innerHTML = '<div class="terminal-line" style="color: var(--text-muted);">[LOG] Hệ thống đang sẵn sàng...</div>';
                     return;
                 }
-                
-                logs.forEach(line => {
+
+                logs.forEach(item => {
                     const div = document.createElement('div');
                     div.className = 'terminal-line';
-                    div.textContent = line;
+
+                    let color = '#38bdf8';
+                    if (item.level === 'SUCCESS') color = '#4ade80';
+                    else if (item.level === 'WARNING') color = '#facc15';
+                    else if (item.level === 'ERROR') color = '#f87171';
+
+                    if (typeof item === 'object' && item.time && item.message) {
+                        div.innerHTML = `<span style="color: #64748b;">[${item.time}]</span> <span style="color: ${color}; font-weight: 700;">[${item.level}]</span> ${item.message}`;
+                    } else {
+                        div.textContent = typeof item === 'string' ? item : JSON.stringify(item);
+                    }
                     terminalBody.appendChild(div);
                 });
-                
+
                 if (wasAtBottom) {
                     terminalBody.scrollTop = terminalBody.scrollHeight;
                 }
@@ -915,4 +1005,5 @@
         setInterval(updateLogs, 2000);
     </script>
 </body>
+
 </html>

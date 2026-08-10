@@ -17,12 +17,22 @@ import uvicorn.protocols.websockets.auto
 import uvicorn.lifespan
 import uvicorn.lifespan.on
 
+import os
+from dotenv import load_dotenv
+
+# Nạp các biến cấu hình từ .env nếu có
+load_dotenv()
+
+APP_HOST = os.getenv("APP_HOST", "127.0.0.1")
+APP_PORT = int(os.getenv("APP_PORT", "8000"))
+APP_TITLE = os.getenv("APP_TITLE", "BILIBILI 4K DOWNLOADER DESKTOP APP")
+
 def start_server():
-    uvicorn.run("app:app", host="127.0.0.1", port=8000, log_level="warning")
+    uvicorn.run("app:app", host=APP_HOST, port=APP_PORT, log_level="warning")
 
 def open_browser():
     time.sleep(1.5)
-    url = "http://127.0.0.1:8000"
+    url = f"http://{APP_HOST}:{APP_PORT}"
     print(f"\n[DESKTOP LAUNCHER] DANG MO GIAO DIEN TAI: {url}")
     webbrowser.open(url)
 
@@ -31,7 +41,7 @@ if __name__ == "__main__":
     multiprocessing.freeze_support()
     
     print("-" * 60)
-    print("      KHOI CHAY BILIBILI 4K DOWNLOADER DESKTOP APP      ")
+    print(f"      KHOI CHAY {APP_TITLE.upper()}      ")
     print("-" * 60)
     
     # Chạy server FastAPI ở luồng phụ

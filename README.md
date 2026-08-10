@@ -119,14 +119,14 @@ python run_app.py
 ### 4.2 Chạy kiểm thử liên kết API (Integration Test)
 Dự án đi kèm với một script kiểm thử tự động để kiểm tra khả năng khởi chạy của API, liên kết nội bộ, và khả năng kết nối tới Bilibili:
 ```bash
-python test_app.py
+python tests/test_app.py
 ```
 *Kết quả:* Script sẽ tự động khởi chạy server FastAPI trên cổng test `8999`, gọi kiểm thử tự động `GET /api/system` và `POST /api/analyze` để kiểm tra toàn bộ luồng xử lý trước khi chạy thật.
 
 ### 4.3 Chạy bộ kiểm thử đơn vị (Unit Test Suite)
 Để kiểm tra 100% logic nội bộ bao gồm: thuật toán làm sạch URL, nhận diện FFmpeg, cơ chế xoay vòng proxy, cơ chế tự động thử lại 3 lần, và chức năng hủy tải (cancel) giữa chừng mà không cần kết nối mạng:
 ```bash
-python run_tests.py
+python tests/run_tests.py
 ```
 *Kết quả:* Trình chạy test `unittest` của Python sẽ thực thi toàn bộ 6 ca kiểm thử độc lập và trả về kết quả `OK` nếu mọi logic hoạt động hoàn toàn chính xác.
 
@@ -153,10 +153,10 @@ python run_tests.py
 1. **Bước 1: Phân tích đường dẫn**
    * Dán URL video hoặc URL Space Bilibili vào ô nhập liệu.
    * Chọn trình duyệt để trích xuất Cookie đã đăng nhập nếu bạn muốn tải chất lượng cao (như Chrome, Firefox, Edge).
-   * Nhấn nút **BUOC 1: PHAN TICH DUONG DAN**.
+   * Nhấn nút **Tìm kiếm**.
 2. **Bước 2: Chọn cấu hình và Tải xuống**
    * Đối với video đơn: Chọn độ phân giải muốn tải (ví dụ: `2160p (4K ULTRA HD)`, `1080p`,...).
    * Đối với Space/Profile: Nhập khoảng trang muốn tải (Ví dụ: Từ trang 1 đến trang 2).
-   * Nhấn nút **BUOC 2: BAT DAU TAI XUONG**.
+   * Nhấn nút **Tải xuống**.
 3. **Theo dõi tiến trình:**
    * Giao diện hiển thị cụ thể: Tốc độ tải, Thời gian đã tải (`elapsed_time`), Trạng thái thử lại (`[LAN THU 1/3]`) nếu xảy ra lỗi, và nút **HUY** để hủy tải bất kỳ lúc nào.

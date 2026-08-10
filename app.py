@@ -21,7 +21,15 @@ from dotenv import load_dotenv
 # Load các biến môi trường từ file .env nếu có
 load_dotenv()
 
-app = FastAPI(title="Bilibili Advanced Downloader")
+APP_TITLE = os.getenv("APP_TITLE", "Bilibili Advanced Downloader")
+app = FastAPI(title=APP_TITLE)
+
+# --- CẤU HÌNH DOMAIN & FILE CONFIG ---
+BILIBILI_SPACE_DOMAIN = os.getenv("BILIBILI_SPACE_DOMAIN", "space.bilibili.com")
+BILIBILI_API_DOMAIN = os.getenv("BILIBILI_API_DOMAIN", "api.bilibili.com")
+BILIBILI_VIDEO_BASE_URL = os.getenv("BILIBILI_VIDEO_BASE_URL", "https://www.bilibili.com/video/")
+DIALOG_TITLE = os.getenv("DIALOG_TITLE", "Chon thu muc luu video Bilibili")
+PROXY_FILE_NAME = os.getenv("PROXY_FILE", "proxies.txt")
 
 # --- ĐƯỜNG DẪN HOẠT ĐỘNG ---
 if getattr(sys, 'frozen', False):
@@ -34,18 +42,18 @@ if base_path not in os.environ.get("PATH", ""):
     os.environ["PATH"] = base_path + os.pathsep + os.environ.get("PATH", "")
 
 STATIC_DIR = os.path.join(base_path, "static")
-DOWNLOAD_DIR = os.path.abspath("./downloads")
+DOWNLOAD_DIR = os.path.abspath(os.getenv("DOWNLOAD_DIR", "./downloads"))
 
 # Đảm bảo tạo thư mục downloads khi ứng dụng khởi chạy
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 os.makedirs(STATIC_DIR, exist_ok=True)
 
 EXE_DIR = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(EXE_DIR, "config.json")
+CONFIG_FILE = os.path.join(EXE_DIR, os.getenv("CONFIG_FILE", "config.json"))
 
 # --- CẤU HÌNH LOGGING GHI FILE ---
 # --- CẤU HÌNH LOGGING GHI FILE (OVERWRITE MODE) ---
-LOG_FILE = os.path.join(EXE_DIR, "hi_downloader.log")
+LOG_FILE = os.path.join(EXE_DIR, os.getenv("LOG_FILE", "hi_downloader.log"))
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
@@ -59,6 +67,47 @@ logging.info(f"--- KHOI DONG HE THONG ---")
 logging.info(f"Thu muc chay file: {EXE_DIR}")
 logging.info(f"File log duoc luu tai: {LOG_FILE}")
 
+# --- BỘ ĐỆM LOG NGƯỜI DÙNG (USER LOG BUFFER CHO GIAO DIỆN UI) ---
+class UserLogBuffer:
+    def __init__(self, max_size: int = 500):
+        self.max_size = max_size
+        self._buffer: list[dict] = []
+        self._lock = threading.Lock()
+
+    def append(self, message: str, level: str = "INFO"):
+        timestamp = time.strftime("%H:%M:%S")
+        entry = {
+            "time": timestamp,
+            "level": level,
+            "message": message
+        }
+        with self._lock:
+            self._buffer.append(entry)
+            if len(self._buffer) > self.max_size:
+                self._buffer.pop(0)
+
+    def get_logs(self) -> list[dict]:
+        with self._lock:
+            return list(self._buffer)
+
+    def clear(self):
+        with self._lock:
+            self._buffer.clear()
+
+user_log_buffer = UserLogBuffer()
+
+def log_user(message: str, level: str = "INFO"):
+    user_log_buffer.append(message, level)
+    log_msg = f"[USER] {message}"
+    if level == "ERROR":
+        logging.error(log_msg)
+    elif level == "WARNING":
+        logging.warning(log_msg)
+    else:
+        logging.info(log_msg)
+
+log_user("Khởi động hệ thống thành công.")
+
 # --- MONKEYPATCH YT-DLP ĐỂ BẮT TỔNG SỐ VIDEO KÊNH & DỊCH CHUYỂN PHÂN TRANG TRÁNH LỖI RATE LIMIT (412) ---
 from yt_dlp.extractor.bilibili import BilibiliSpaceVideoIE, BilibiliBaseIE
 
@@ -69,7 +118,7 @@ original_download_json = BilibiliSpaceVideoIE._download_json
 
 def patched_download_json(self, url, video_id, *args, **kwargs):
     res = original_download_json(self, url, video_id, *args, **kwargs)
-    if "api.bilibili.com/x/space/wbi/arc/search" in url:
+    if f"{BILIBILI_API_DOMAIN}/x/space/wbi/arc/search" in url:
         try:
             count = res.get("page", {}).get("count") or res.get("data", {}).get("page", {}).get("count")
             if count is not None:
@@ -123,15 +172,29 @@ def get_default_browser() -> str:
         return WORKING_BROWSERS[0]
     return "firefox"
 
+ALL_SUPPORTED_BROWSERS = ["firefox", "chrome", "edge", "safari"]
+
+def get_browser_rotation_list(primary_browser: Optional[str] = None) -> list[str]:
+    """Tạo danh sách xoay vòng các trình duyệt THỰC TẾ ĐÃ ĐƯỢC PHÁT HIỆN trên máy người dùng."""
+    available = list(WORKING_BROWSERS) if WORKING_BROWSERS else ["firefox", "chrome"]
+    first = primary_browser if (primary_browser and primary_browser in available) else available[0]
+    
+    rotation = [first]
+    for b in available:
+        if b not in rotation:
+            rotation.append(b)
+    return rotation
+
 def reset_run_environment_if_idle():
     """Reset tasks và log file trước khi bắt đầu một đợt tải mới nếu không có task nào đang chạy"""
     has_active = any(t.get("status") in ["downloading", "merging"] for t in tasks.values())
     if not has_active and tasks:
         tasks.clear()
+        user_log_buffer.clear()
         try:
             with open(LOG_FILE, "w", encoding="utf-8") as f:
                 f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} [INFO] --- BAT DAU LUOT TAI MOI (BENCHMARK) ---\n")
-            logging.info("Da reset danh sach task va tui log file cho luot tai moi.")
+            log_user("Đã bắt đầu lượt tải mới.")
         except Exception as e:
             logging.error(f"Loi reset log file: {e}")
 
@@ -181,7 +244,7 @@ def get_run_target_dir(base_dir: str) -> str:
     next_run = max(existing_runs) + 1 if existing_runs else 1
     run_dir = os.path.join(day_dir, str(next_run))
     os.makedirs(run_dir, exist_ok=True)
-    logging.info(f"[RUN DIR] Tao thu muc lan chay moi: {run_dir}")
+    log_user(f"Tạo thư mục lần chạy mới: {run_dir}")
     return run_dir
 
 # --- CẤU HÌNH PROXY & WORKER ---
@@ -222,7 +285,7 @@ class YDLLogger:
 
 def clean_url(url: str) -> str:
     cleaned = url.split('?')[0]
-    if "space.bilibili.com" in cleaned and "/upload/video" in cleaned:
+    if BILIBILI_SPACE_DOMAIN in cleaned and "/upload/video" in cleaned:
         cleaned = cleaned.replace("/upload/video", "/video")
     return cleaned
 
@@ -232,22 +295,41 @@ def check_ffmpeg():
     in_exe_dir = os.path.exists(os.path.join(EXE_DIR, "ffmpeg.exe")) or os.path.exists(os.path.join(EXE_DIR, "ffmpeg"))
     return in_path or in_base_dir or in_exe_dir
 
-def get_rotational_proxy() -> Optional[str]:
-    proxy_file = os.path.join(EXE_DIR, "proxies.txt")
+def get_all_proxies() -> list[Optional[str]]:
+    proxy_file = os.path.join(EXE_DIR, PROXY_FILE_NAME)
     if not os.path.exists(proxy_file):
-        return None
+        return [None]
     try:
-        with open(proxy_file, "r") as f:
+        with open(proxy_file, "r", encoding="utf-8") as f:
             lines = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
         if not lines:
-            return None
-        selected_proxy = random.choice(lines)
-        if PROXY_USER and PROXY_PASS:
-            return f"http://{PROXY_USER}:{PROXY_PASS}@{selected_proxy}"
-        return f"http://{selected_proxy}"
+            return [None]
+        proxies = []
+        for selected_proxy in lines:
+            if PROXY_USER and PROXY_PASS:
+                proxies.append(f"http://{PROXY_USER}:{PROXY_PASS}@{selected_proxy}")
+            else:
+                proxies.append(f"http://{selected_proxy}")
+        return proxies
     except Exception as e:
         logging.error(f"[PROXY ERROR] Loi doc file proxies.txt: {e}")
+        return [None]
+
+def get_rotational_proxy() -> Optional[str]:
+    proxies = get_all_proxies()
+    valid = [p for p in proxies if p is not None]
+    if not valid:
         return None
+    return random.choice(valid)
+
+def get_retry_pairs(primary_browser: Optional[str] = None) -> list[tuple[str, Optional[str]]]:
+    browsers = get_browser_rotation_list(primary_browser)
+    proxies = get_all_proxies()
+    pairs = []
+    for p in proxies:
+        for b in browsers:
+            pairs.append((b, p))
+    return pairs
 
 # --- API PHÂN TÍCH (ANALYZE/SEARCH) - TÍCH HỢP RETRY 3 LẦN & ROTATION PROXY/COOKIES ---
 @app.post("/api/analyze")
@@ -256,21 +338,19 @@ def analyze_url(req: AnalyzeRequest):
     if hasattr(thread_local_data, 'page_start'):
         del thread_local_data.page_start
     url = clean_url(req.url)
-    logging.info(f"Bat dau phan tich URL (Tim kiem): {url}")
     
-    max_attempts = 3
-    browsers = list(WORKING_BROWSERS) if WORKING_BROWSERS else ["firefox", "chrome", "safari", "edge"]
-    primary_browser = req.cookies_browser or (browsers[0] if browsers else "firefox")
+    pairs = get_retry_pairs(req.cookies_browser)
+    max_attempts = len(pairs)
+    log_user(f"Bắt đầu phân tích URL: {url} (Tổng số {max_attempts} tổ hợp Trình duyệt × Proxy)")
     
     last_err = None
     
-    for attempt in range(1, max_attempts + 1):
+    for attempt, (browser, proxy) in enumerate(pairs, start=1):
+        proxy_info = f" | Proxy: {proxy.split('@')[-1]}" if proxy else " | Không dùng Proxy"
         if attempt == 1:
-            browser = primary_browser
+            log_user(f"Lần thử 1/{max_attempts}: Trình duyệt {browser}{proxy_info}")
         else:
-            remaining = [b for b in browsers if b != primary_browser]
-            browser = remaining[(attempt - 2) % len(remaining)] if remaining else primary_browser
-            logging.info(f"[ANALYZE RETRY] Lan thu {attempt}/{max_attempts}: Xoay trinh duyet sang {browser} va doi proxy de thu lai...")
+            log_user(f"Lần thử {attempt}/{max_attempts}: Xoay sang Trình duyệt {browser}{proxy_info}", level="WARNING")
             time.sleep(1.5)
             
         ydl_opts = {
@@ -279,10 +359,14 @@ def analyze_url(req: AnalyzeRequest):
             'sleep_interval_requests': 2,  # Delay 2s giữa các request lấy dữ liệu (tránh bị chặn 412)
             'playlistend': 1,              # CHỈ QUÉT TRANG ĐẦU TIÊN
             'logger': YDLLogger(),
-            'cookiesfrombrowser': (browser,)
+            'cookiesfrombrowser': (browser,),
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Referer': 'https://www.bilibili.com/',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            }
         }
             
-        proxy = get_rotational_proxy()
         if proxy:
             logging.info(f"[ANALYZE] Lan thu {attempt}/{max_attempts} - Su dung Proxy: {proxy.split('@')[-1]} (Cookies: {browser})")
             ydl_opts['proxy'] = proxy
@@ -293,7 +377,7 @@ def analyze_url(req: AnalyzeRequest):
                 
             if 'entries' in info:
                 # Trích xuất mid (creator id) từ url để đối chiếu với biến global đã bắt
-                mid_match = re.search(r'space\.bilibili\.com/(\d+)', url)
+                mid_match = re.search(rf'{re.escape(BILIBILI_SPACE_DOMAIN)}/(\d+)', url)
                 mid = mid_match.group(1) if mid_match else None
                 
                 total_videos = 0
@@ -304,7 +388,7 @@ def analyze_url(req: AnalyzeRequest):
                     total_videos = len(info.get('entries', []))
 
                 total_pages = (total_videos + 29) // 30
-                logging.info(f"Phan tich Space thanh cong sau {attempt} lan thu: {info.get('title')} ({total_videos} videos)")
+                log_user(f"Phân tích Kênh thành công: {info.get('title')} ({total_videos} video)", level="SUCCESS")
                 return {
                     "type": "space",
                     "title": info.get("title", "Bilibili Space"),
@@ -331,7 +415,7 @@ def analyze_url(req: AnalyzeRequest):
                 if not quality_labels:
                     quality_labels.append({"value": "best", "label": "CHAT LUONG TOT NHAT (AUTO)"})
 
-                logging.info(f"Phan tich Video don le thanh cong sau {attempt} lan thu: {info.get('title')}")
+                log_user(f"Phân tích Video thành công: {info.get('title')}", level="SUCCESS")
                 return {
                     "type": "video",
                     "title": info.get("title", "Video Don Le"),
@@ -345,8 +429,8 @@ def analyze_url(req: AnalyzeRequest):
             err_str = str(e)
             logging.warning(f"[ANALYZE ATTEMPT {attempt}/{max_attempts}] That bai voi trinh duyet {browser}: {err_str}")
                 
-    logging.error(f"Loi khi phan tich URL {url} sau {max_attempts} lan thu: {last_err}")
     clean_err_msg = str(last_err).replace("\u001b[0;31m", "").replace("\u001b[0m", "")
+    log_user(f"Lỗi phân tích URL: {clean_err_msg}", level="ERROR")
     raise HTTPException(status_code=500, detail=f"Loi Bilibili sau 3 lan thu: {clean_err_msg}")
 
 # --- HÀM TẢI WORKER ĐA LUỒNG TÍCH HỢP RETRY & ĐO THỜI GIAN ---
@@ -403,10 +487,15 @@ def download_worker(task_id: str, url: str, cookies_browser: str, quality: str, 
         'sleep_interval': 3,              # Delay ngẫu nhiên từ 3s đến 6s giữa các video (giảm rate limit)
         'max_sleep_interval': 6,
         'sleep_interval_requests': 2,     # Delay 2s giữa các request gọi API lấy dữ liệu phân trang
-        'logger': YDLLogger()
+        'logger': YDLLogger(),
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Referer': 'https://www.bilibili.com/',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        }
     }
 
-    if "space.bilibili.com" in url:
+    if BILIBILI_SPACE_DOMAIN in url:
         # Cơ chế tịnh tiến trang để tải trực tiếp trang mong muốn, không quét tuần tự từ trang 1
         page_count = page_end - page_start + 1
         ydl_opts['playliststart'] = 1
@@ -418,17 +507,17 @@ def download_worker(task_id: str, url: str, cookies_browser: str, quality: str, 
         if hasattr(thread_local_data, 'page_start'):
             del thread_local_data.page_start
 
-    max_attempts = 3
+    pairs = get_retry_pairs(cookies_browser)
+    max_attempts = len(pairs)
     success = False
     last_error_msg = ""
 
-    for attempt in range(1, max_attempts + 1):
+    for attempt, (selected_browser, proxy) in enumerate(pairs, start=1):
         if tasks[task_id]["status"] == "canceled":
             break
             
         try:
             tasks[task_id]["retry_count"] = attempt
-            proxy = get_rotational_proxy()
             if proxy:
                 logging.info(f"[TASK {task_id}] Lan thu {attempt}/{max_attempts} - Su dung Proxy: {proxy.split('@')[-1]}")
                 ydl_opts['proxy'] = proxy
@@ -436,40 +525,31 @@ def download_worker(task_id: str, url: str, cookies_browser: str, quality: str, 
                 if 'proxy' in ydl_opts:
                     del ydl_opts['proxy']
 
-            # Bắt buộc nạp cookies từ trình duyệt ngay từ lượt đầu tiên (mặc định lấy trình duyệt khả dụng)
-            active_browser = cookies_browser or get_default_browser()
+            proxy_info = f" | Proxy: {proxy.split('@')[-1]}" if proxy else " | Không dùng Proxy"
             if attempt == 1:
-                logging.info(f"[TASK {task_id}] Nap san cookies tu trinh duyet: {active_browser}")
-                ydl_opts['cookiesfrombrowser'] = (active_browser,)
+                logging.info(f"[TASK {task_id}] Nap cookies tu trinh duyet: {selected_browser}")
             else:
-                # Lượt 2 hoặc 3: Xoay vòng các trình duyệt khả dụng còn lại (đã kiểm tra lúc khởi động)
-                browsers = list(WORKING_BROWSERS)
-                if not browsers:
-                    browsers = ["firefox", "chrome", "safari", "edge"]
-                remaining_browsers = [b for b in browsers if b != active_browser]
-                if not remaining_browsers:
-                    remaining_browsers = browsers
-                selected_browser = remaining_browsers[(attempt - 2) % len(remaining_browsers)]
-                logging.info(f"[TASK {task_id}] Tải lại lần {attempt}. Thử nạp cookies từ trình duyệt {selected_browser} để vượt chặn...")
-                ydl_opts['cookiesfrombrowser'] = (selected_browser,)
+                log_user(f"Lần thử {attempt}/{max_attempts}: Xoay sang Trình duyệt {selected_browser}{proxy_info}", level="WARNING")
+            ydl_opts['cookiesfrombrowser'] = (selected_browser,)
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([clean_url(url)])
             
             success = True
-            logging.info(f"[TASK {task_id}] Tai thanh cong video sau {attempt} lan thu.")
+            log_user(f"Tải thành công video: {url}", level="SUCCESS")
             break
             
         except ValueError as ve:
             if str(ve) == "CANCELED":
                 tasks[task_id]["status"] = "canceled"
-                logging.info(f"[TASK {task_id}] Bi huy boi nguoi dung.")
+                log_user(f"Tác vụ bị hủy bởi người dùng.", level="WARNING")
                 break
             last_error_msg = str(ve)
         except Exception as e:
             last_error_msg = str(e)
             logging.error(f"[TASK {task_id}] Gap loi o lan thu {attempt}/{max_attempts}: {last_error_msg}")
             if attempt < max_attempts:
+                log_user(f"Lần thử {attempt}/{max_attempts} thất bại, thử lại...", level="WARNING")
                 time.sleep(2)
 
     total_elapsed = time.time() - start_time
@@ -492,7 +572,7 @@ def download_worker(task_id: str, url: str, cookies_browser: str, quality: str, 
             "status": "failed",
             "error": f"Loi sau {max_attempts} lan thu: {last_error_msg}"
         })
-        logging.error(f"[TASK {task_id}] That bai hoan toan sau {max_attempts} lan thu. Loi: {last_error_msg}")
+        log_user(f"Tải thất bại sau {max_attempts} lần thử: {last_error_msg}", level="ERROR")
 
 def space_download_manager(master_task_id: str, url: str, cookies_browser: str, quality: str, page_start: int, page_end: int, target_dir: str, max_videos: Optional[int] = None):
     start_time = time.time()
@@ -527,16 +607,16 @@ def space_download_manager(master_task_id: str, url: str, cookies_browser: str, 
             
         if max_videos and max_videos > 0:
             entries = entries[:max_videos]
-            logging.info(f"[MASTER TASK {master_task_id}] Giới hạn số lượng video tải xuống: {len(entries)} video.")
+            log_user(f"Giới hạn số lượng video tải xuống: {len(entries)} video.")
 
-        logging.info(f"[MASTER TASK {master_task_id}] Phân tách thành công {len(entries)} video từ Space. Đang đẩy vào hàng chờ...")
+        log_user(f"Phân tách thành công {len(entries)} video từ Kênh. Đang đẩy vào hàng chờ...", level="SUCCESS")
         
         for item in entries:
             video_id = item.get('id') or item.get('url')
             if not video_id:
                 continue
             video_title = item.get('title') or f"Video {video_id}"
-            video_url = item.get('url') if item.get('url', '').startswith("http") else f"https://www.bilibili.com/video/{video_id}"
+            video_url = item.get('url') if item.get('url', '').startswith("http") else f"{BILIBILI_VIDEO_BASE_URL.rstrip('/')}/{video_id}"
                 
             sub_task_id = str(uuid.uuid4())
             tasks[sub_task_id] = {
@@ -577,7 +657,7 @@ def space_download_manager(master_task_id: str, url: str, cookies_browser: str, 
             "error": f"Lỗi trích xuất Space: {err_msg}",
             "elapsed_time": round(time.time() - start_time, 1)
         })
-        logging.error(f"[MASTER TASK {master_task_id}] Lỗi: {err_msg}")
+        log_user(f"Lỗi trích xuất Kênh: {err_msg}", level="ERROR")
     finally:
         if hasattr(thread_local_data, 'page_start'):
             del thread_local_data.page_start
@@ -597,7 +677,7 @@ def trigger_download(req: DownloadRequest):
     
     clean_req_url = clean_url(req.url)
     
-    if "space.bilibili.com" in clean_req_url:
+    if BILIBILI_SPACE_DOMAIN in clean_req_url:
         master_task_id = str(uuid.uuid4())
         tasks[master_task_id] = {
             "id": master_task_id,
@@ -693,22 +773,15 @@ def get_system():
         "download_dir": load_cached_dir()
     }
 
-# --- API LẤY LOG THỜI GIAN THỰC (LIVE SHELL LOGS) ---
+# --- API LẤY LOG THỜI GIAN THỰC (USER UI LOGS) ---
 @app.get("/api/logs")
 def get_logs():
-    if not os.path.exists(LOG_FILE):
-        return []
-    try:
-        with open(LOG_FILE, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-            tail = [line.strip() for line in lines[-20:]]
-            clean_tail = []
-            for line in tail:
-                clean_line = line.replace("\u001b[0;31m", "").replace("\u001b[0m", "")
-                clean_tail.append(clean_line)
-            return clean_tail
-    except Exception as e:
-        return [f"Loi doc file log: {e}"]
+    return user_log_buffer.get_logs()
+
+@app.post("/api/logs/clear")
+def clear_logs():
+    user_log_buffer.clear()
+    return {"status": "success"}
 
 # --- BỘ TỰ ĐỘNG PHÁT HIỆN PORT ĐỒ HỌA HOẠT ĐỘNG (DISPLAY/XAUTHORITY PROBER) ---
 def get_gui_env() -> dict:
@@ -760,7 +833,7 @@ def select_directory():
         # Thử Zenity (Cực đẹp, mặc định cho Ubuntu/GNOME)
         if shutil.which("zenity"):
             try:
-                cmd = ["zenity", "--file-selection", "--directory", "--title=Chon thu muc luu video Bilibili"]
+                cmd = ["zenity", "--file-selection", "--directory", f"--title={DIALOG_TITLE}"]
                 output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
                 path = output.strip()
                 if path:
@@ -778,7 +851,7 @@ def select_directory():
         # Thử Kdialog (Mặc định cho các desktop KDE)
         if shutil.which("kdialog"):
             try:
-                cmd = ["kdialog", "--getexistingdirectory", ".", "--title", "Chon thu muc luu video Bilibili"]
+                cmd = ["kdialog", "--getexistingdirectory", ".", "--title", DIALOG_TITLE]
                 output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
                 path = output.strip()
                 if path:
@@ -796,7 +869,7 @@ def select_directory():
     # 2. TRÊN OS MAC-OS: Sử dụng AppleScript mở Finder chọn thư mục gốc
     if sys.platform == "darwin":
         try:
-            cmd = ["osascript", "-e", 'POSIX path of (choose folder with prompt "Chon thu muc luu video Bilibili")']
+            cmd = ["osascript", "-e", f'POSIX path of (choose folder with prompt "{DIALOG_TITLE}")']
             output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
             path = output.strip()
             if path:
@@ -815,7 +888,7 @@ def select_directory():
         cmd = [
             sys.executable,
             "-c",
-            "import tkinter as tk; from tkinter import filedialog; root=tk.Tk(); root.withdraw(); root.attributes('-topmost', True); print(filedialog.askdirectory(title='Chon thu muc luu video Bilibili'))"
+            f"import tkinter as tk; from tkinter import filedialog; root=tk.Tk(); root.withdraw(); root.attributes('-topmost', True); print(filedialog.askdirectory(title='{DIALOG_TITLE}'))"
         ]
         output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
         path = output.strip()
