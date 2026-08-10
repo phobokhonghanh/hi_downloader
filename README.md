@@ -19,28 +19,19 @@ python3 --version
 ### 1.2 Cài đặt FFmpeg (Bắt buộc đối với tải 4K/HD)
 Bilibili phân phối video chất lượng cao theo chuẩn DASH (luồng hình ảnh và âm thanh tách biệt). Ứng dụng cần **FFmpeg** để tự động ghép (merge) 2 luồng này thành file `.mp4` hoàn chỉnh.
 
-* **Ubuntu / Debian:**
-  ```bash
-  sudo apt update
-  sudo apt install -y ffmpeg
-  ```
-* **CentOS / RHEL / Rocky Linux:**
-  ```bash
-  sudo dnf install epel-release -y
-  sudo dnf config-manager --set-enabled PowerTools   # (Nếu cần)
-  sudo dnf install ffmpeg ffmpeg-devel -y
-  ```
-* **Arch Linux:**
-  ```bash
-  sudo pacman -S ffmpeg
-  ```
-* **Windows:**
-  Tải bản build sẵn từ trang chủ FFmpeg, giải nén và thêm thư mục `bin` vào biến môi trường PATH của hệ thống. 
-  *(Hoặc đơn giản là copy file `ffmpeg.exe` và `ffprobe.exe` vào ngay thư mục `hi_downloader/` chứa dự án).*
-* **macOS:**
-  ```bash
-  brew install ffmpeg
-  ```
+* **Sử dụng File Binary Tải Trực Tiếp (Dành cho Linux & Windows không muốn cài đặt hệ thống):**
+  * Tải bản build tĩnh của `ffmpeg` và `ffprobe`.
+  * **Di chuyển (move/copy) 2 tệp `ffmpeg` và `ffprobe` (hoặc `ffmpeg.exe` và `ffprobe.exe` trên Windows) vào thẳng gốc thư mục `hi_downloader/`**.
+  * Cấp quyền thực thi nếu chạy trên Linux:
+    ```bash
+    chmod +x ffmpeg ffprobe
+    ```
+
+* **Cài đặt qua trình quản lý gói của Hệ điều hành:**
+  * **Ubuntu / Debian:** `sudo apt update && sudo apt install -y ffmpeg`
+  * **CentOS / RHEL / Rocky Linux:** `sudo dnf install epel-release -y && sudo dnf install ffmpeg -y`
+  * **Arch Linux:** `sudo pacman -S ffmpeg`
+  * **macOS:** `brew install ffmpeg`
 
 ---
 
