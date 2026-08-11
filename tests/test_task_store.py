@@ -81,6 +81,16 @@ class TestTaskStore(unittest.TestCase):
         self.assertIsNotNone(final)
         self.assertGreater(final["progress"], 0.0)
 
+    def test_task_metrics_persistence(self):
+        # Create task with metrics
+        self.store.create_task(task_id="t_metrics", metrics={"test_metric": 42})
+        fetched = self.store.get_task("t_metrics")
+        self.assertEqual(fetched["metrics"], {"test_metric": 42})
+
+        # Update metrics
+        self.store.update_task("t_metrics", metrics={"updated_metric": 100})
+        refetched = self.store.get_task("t_metrics")
+        self.assertEqual(refetched["metrics"], {"updated_metric": 100})
     def test_clear_idle_tasks(self):
         self.store.create_task(task_id="t1", status=TaskStatus.COMPLETED)
         self.store.create_task(task_id="t2", status=TaskStatus.FAILED)

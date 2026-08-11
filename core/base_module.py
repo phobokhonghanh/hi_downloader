@@ -23,12 +23,36 @@ class ModuleResult:
     error: Optional[str] = None
 
 
+@dataclass
+class ModuleMetadata:
+    module_id: str
+    name: str
+    description: str
+    input_schema: Dict[str, Any] = field(default_factory=dict)
+    output_schema: Dict[str, Any] = field(default_factory=dict)
+    supports_standalone: bool = True
+    supports_workflow: bool = True
+
+
 class BaseModule(ABC):
     @property
     @abstractmethod
     def module_id(self) -> str:
         """Unique module identifier."""
         pass
+
+    @property
+    def metadata(self) -> ModuleMetadata:
+        """Returns the module metadata. Default implementation for backward compatibility."""
+        return ModuleMetadata(
+            module_id=self.module_id,
+            name=self.module_id.capitalize(),
+            description="",
+            input_schema={},
+            output_schema={},
+            supports_standalone=True,
+            supports_workflow=True
+        )
 
     @abstractmethod
     def validate_params(self, params: Dict[str, Any]) -> bool:

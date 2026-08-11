@@ -35,3 +35,22 @@ class WorkflowResult:
     step_results: Dict[str, ModuleResult] = field(default_factory=dict)
     final_outputs: List[str] = field(default_factory=list)
     error: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        serialized_steps = {}
+        for step_id, res in self.step_results.items():
+            serialized_steps[step_id] = {
+                "success": res.success,
+                "canceled": res.canceled,
+                "output_files": list(res.output_files),
+                "metrics": dict(res.metrics) if res.metrics else {},
+                "error": res.error
+            }
+        return {
+            "workflow_id": self.workflow_id,
+            "success": self.success,
+            "canceled": self.canceled,
+            "final_outputs": list(self.final_outputs),
+            "step_results": serialized_steps,
+            "error": self.error
+        }

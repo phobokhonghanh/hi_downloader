@@ -32,6 +32,7 @@ class TaskModel:
     error: Optional[str] = None
     target_dir: Optional[str] = None
     artifacts: List[str] = field(default_factory=list)
+    metrics: Dict[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
     cancel_event: threading.Event = field(default_factory=threading.Event)
@@ -53,6 +54,7 @@ class TaskModel:
             "error": self.error,
             "target_dir": self.target_dir,
             "artifacts": list(self.artifacts),
+            "metrics": dict(self.metrics),
             "created_at": self.created_at,
             "updated_at": self.updated_at
         }

@@ -172,6 +172,63 @@ class TestWorkflowEngine(unittest.TestCase):
         task_snap = self.store.get_task("wf_task_invalid")
         self.assertEqual(task_snap["status"], "failed")
         self.assertIn("Invalid parameters for step 'step_invalid'", task_snap["error"])
+    def test_engine_resolves_from_registry(self):
+        from core.module_registry import ModuleRegistry
+        registry = ModuleRegistry()
+        registry.register(MockExtractorModule())
+
+        engine_with_registry = WorkflowEngine(task_store=self.store, module_registry=registry)
+        
+        # Test finding module from registry
+        config = WorkflowConfig(
+            workflow_id="wf_registry_test",
+            name="Registry Step Workflow",
+            steps=[StepConfig(step_id="step1", module_id="mock_extractor")]
+        )
+        res = engine_with_registry.execute_workflow("wf_registry_task", config)
+        self.assertTrue(res.success)
+
+    def test_engine_fallback_to_internal_modules(self):
+        from core.module_registry import ModuleRegistry
+        registry = ModuleRegistry()
+        
+        engine_with_registry = WorkflowEngine(task_store=self.store, module_registry=registry)
+        # Register in internal self.modules
+        engine_with_registry.register_module(MockExtractorModule())
+
+        config = WorkflowConfig(
+            workflow_id="wf_fallback_test",
+            name="Fallback Step Workflow",
+            steps=[StepConfig(step_id="step1", module_id="mock_extractor")]
+        )
+        res = engine_with_registry.execute_workflow("wf_fallback_task", config)
+        self.assertTrue(res.success)
+
+    def test_engine_missing_module_returns_failure(self):
+        config = WorkflowConfig(
+            workflow_id="wf_missing_test",
+            name="Missing Step Workflow",
+            steps=[StepConfig(step_id="step1", module_id="non_existent")]
+        )
+        res = self.engine.execute_workflow("wf_missing_task", config)
+        self.assertFalse(res.success)
+        self.assertIn("is not registered", res.error)
+
+    def test_workflow_result_to_dict_serialization(self):
+        config = WorkflowConfig(
+            workflow_id="wf_serialization",
+            name="Serialization Workflow",
+            steps=[StepConfig(step_id="step1", module_id="mock_extractor")]
+        )
+        res = self.engine.execute_workflow("wf_serialization_task", config)
+        self.assertTrue(res.success)
+        
+        res_dict = res.to_dict()
+        self.assertEqual(res_dict["workflow_id"], "wf_serialization")
+        self.assertTrue(res_dict["success"])
+        self.assertIn("step1", res_dict["step_results"])
+        self.assertTrue(res_dict["step_results"]["step1"]["success"])
+        self.assertEqual(res_dict["step_results"]["step1"]["metrics"], {"count": 1})
 
 
 if __name__ == "__main__":

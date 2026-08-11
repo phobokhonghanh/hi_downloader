@@ -1,17 +1,23 @@
 import threading
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 from core.task_store import TaskStore, TaskStatus
 from core.base_module import BaseModule, ModuleContext, ModuleResult
 from workflow.schemas import WorkflowConfig, WorkflowResult
 
 
 class WorkflowEngine:
-    def __init__(self, task_store: Optional[TaskStore] = None):
+    def __init__(self, task_store: Optional[TaskStore] = None, module_registry: Optional[Any] = None):
         self.task_store = task_store
+        self.module_registry = module_registry
         self.modules: Dict[str, BaseModule] = {}
 
     def register_module(self, module: BaseModule):
         self.modules[module.module_id] = module
+
+    def _get_module(self, module_id: str) -> Optional[BaseModule]:
+        if self.module_registry and self.module_registry.has(module_id):
+            return self.module_registry.get(module_id)
+        return self.modules.get(module_id)
 
     def execute_workflow(self, workflow_task_id: str, config: WorkflowConfig) -> WorkflowResult:
         if self.task_store:
@@ -56,7 +62,7 @@ class WorkflowEngine:
                     error="Workflow canceled before step execution"
                 )
 
-            module = self.modules.get(step_cfg.module_id)
+            module = self._get_module(step_cfg.module_id)
             if not module:
                 err_msg = f"Module '{step_cfg.module_id}' is not registered."
                 if self.task_store:

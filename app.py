@@ -12,12 +12,16 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
-from core.task_store import TaskStore
+from core.task_store import TaskStore, TaskStatus
 from modules.downloader.schemas import AnalyzeRequestData, DownloadRequestData
 from modules.downloader.service import DownloaderService
+from core.module_registry import ModuleRegistry
+from modules.downloader.module import DownloaderModule
+from workflow.engine import WorkflowEngine
+from workflow.schemas import WorkflowConfig, StepConfig
 
 # Load environment variables
 load_dotenv()
@@ -208,6 +212,11 @@ downloader_service = DownloaderService(
     config=config_downloader
 )
 
+module_registry = ModuleRegistry()
+module_registry.register(DownloaderModule(downloader_service))
+
+workflow_engine = WorkflowEngine(task_store=task_store, module_registry=module_registry)
+
 
 def reset_run_environment_if_idle():
     tasks = task_store.get_all_tasks()
@@ -323,6 +332,207 @@ def get_logs():
 def clear_logs():
     user_log_buffer.clear()
     return {"status": "success"}
+
+
+class ModuleRunRequest(BaseModel):
+    params: dict = Field(default_factory=dict)
+    input_files: list[str] = Field(default_factory=list)
+    output_dir: Optional[str] = None
+
+
+def run_standalone_module_task(task_id: str, module_id: str, params: dict, input_files: list, output_dir: str):
+    try:
+        module = module_registry.get(module_id)
+    except KeyError:
+        task_store.update_task(task_id, status=TaskStatus.FAILED, error=f"Module '{module_id}' not found")
+        return
+
+    # Setup cancel event
+    cancel_event = task_store.get_cancel_event(task_id) or threading.Event()
+
+    # Update status to PROCESSING
+    task_store.update_task(task_id, status=TaskStatus.PROCESSING, progress=10.0)
+
+    # Build context
+    from core.base_module import ModuleContext
+    context = ModuleContext(
+        task_id=task_id,
+        input_files=input_files,
+        output_dir=output_dir,
+        params=params,
+        cancel_event=cancel_event
+    )
+
+    try:
+        res = module.run(context)
+        if res.canceled or cancel_event.is_set():
+            task_store.update_task(task_id, status=TaskStatus.CANCELED)
+        elif not res.success:
+            task_store.update_task(task_id, status=TaskStatus.FAILED, error=res.error or "Module run failed")
+        else:
+            task_store.update_task(
+                task_id,
+                status=TaskStatus.COMPLETED,
+                progress=100.0,
+                artifacts=res.output_files,
+                metrics=res.metrics
+            )
+    except Exception as e:
+        task_store.update_task(task_id, status=TaskStatus.FAILED, error=str(e))
+
+
+@app.get("/api/modules")
+def get_modules():
+    return module_registry.list_module_dicts()
+
+
+@app.post("/api/modules/{module_id}/run")
+def run_module(module_id: str, req: ModuleRunRequest):
+    if not module_registry.has(module_id):
+        raise HTTPException(status_code=404, detail=f"Module '{module_id}' không tồn tại")
+
+    module = module_registry.get(module_id)
+    if not module.metadata.supports_standalone:
+        raise HTTPException(status_code=400, detail="Module không hỗ trợ chạy độc lập (standalone)")
+
+    if not module.validate_params(req.params):
+        raise HTTPException(status_code=400, detail="Tham số không hợp lệ cho module")
+
+    task_id = f"run_{module_id}_{uuid.uuid4().hex[:8]}"
+    base_dir = os.path.abspath(req.output_dir) if req.output_dir else load_cached_dir()
+    os.makedirs(base_dir, exist_ok=True)
+    save_cached_dir(base_dir)
+
+    target_dir = get_run_target_dir(base_dir)
+
+    # Create pending task in task_store
+    task_store.create_task(
+        task_id=task_id,
+        module_id=module_id,
+        filename=f"Standalone: {module.metadata.name}",
+        target_dir=target_dir
+    )
+
+    # Submit task execution to thread executor
+    executor.submit(run_standalone_module_task, task_id, module_id, req.params, req.input_files, target_dir)
+
+    return {"task_id": task_id, "status": "pending"}
+
+
+class StepRunRequest(BaseModel):
+    step_id: str
+    module_id: str
+    params: dict = Field(default_factory=dict)
+    on_error: str = "stop"
+
+
+class WorkflowRunRequest(BaseModel):
+    workflow_id: Optional[str] = None
+    name: str
+    steps: list[StepRunRequest] = Field(default_factory=list)
+    output_dir: Optional[str] = None
+    initial_inputs: list[str] = Field(default_factory=list)
+
+
+def run_workflow_task(task_id: str, config: WorkflowConfig):
+    try:
+        res = workflow_engine.execute_workflow(task_id, config)
+        serialized_res = res.to_dict()
+        
+        # update task in task_store with serialized result under key "workflow"
+        task_store.update_task(
+            task_id,
+            metrics={"workflow": serialized_res}
+        )
+        
+        # update status, error or progress if not already completed/failed/canceled
+        task = task_store.get_task(task_id)
+        if task and task.get("status") not in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELED):
+            if res.canceled:
+                task_store.update_task(task_id, status=TaskStatus.CANCELED)
+            elif not res.success:
+                task_store.update_task(task_id, status=TaskStatus.FAILED, error=res.error or "Workflow failed")
+            else:
+                task_store.update_task(task_id, status=TaskStatus.COMPLETED, progress=100.0, artifacts=res.final_outputs)
+    except Exception as e:
+        task_store.update_task(task_id, status=TaskStatus.FAILED, error=str(e))
+
+
+@app.post("/api/workflows/run")
+def run_workflow(req: WorkflowRunRequest):
+    # validate workflow name
+    if not req.name or not req.name.strip():
+        raise HTTPException(status_code=400, detail="Tên workflow không được để trống")
+
+    # validate at least one step
+    if not req.steps:
+        raise HTTPException(status_code=400, detail="Workflow phải có ít nhất 1 bước (step)")
+
+    # validate each step module exists and supports workflow, and on_error is valid
+    steps_config = []
+    seen_step_ids = set()
+    for step in req.steps:
+        # validate step_id and module_id
+        if not step.step_id or not step.step_id.strip():
+            raise HTTPException(status_code=400, detail="ID của step không được để trống")
+        if not step.module_id or not step.module_id.strip():
+            raise HTTPException(status_code=400, detail="ID của module không được để trống")
+            
+        sid = step.step_id.strip()
+        if sid in seen_step_ids:
+            raise HTTPException(status_code=400, detail=f"ID của step '{sid}' bị trùng lặp")
+        seen_step_ids.add(sid)
+
+        if step.on_error not in ("stop", "skip"):
+            raise HTTPException(status_code=400, detail=f"Giá trị on_error '{step.on_error}' không hợp lệ (chỉ chấp nhận 'stop' hoặc 'skip')")
+
+        if not module_registry.has(step.module_id):
+            raise HTTPException(status_code=404, detail=f"Module '{step.module_id}' không tồn tại trong hệ thống")
+
+        module = module_registry.get(step.module_id)
+        if not module.metadata.supports_workflow:
+            raise HTTPException(status_code=400, detail=f"Module '{step.module_id}' không hỗ trợ chạy trong workflow")
+
+        # Convert step request model to StepConfig schema
+        steps_config.append(StepConfig(
+            step_id=sid,
+            module_id=step.module_id.strip(),
+            params=step.params,
+            on_error=step.on_error
+        ))
+
+    # Resolve workflow_id
+    wf_id = req.workflow_id or f"wf_{uuid.uuid4().hex[:8]}"
+    task_id = f"wf_{uuid.uuid4().hex[:8]}"
+
+    # Resolve output directory
+    base_dir = os.path.abspath(req.output_dir) if req.output_dir else load_cached_dir()
+    os.makedirs(base_dir, exist_ok=True)
+    save_cached_dir(base_dir)
+
+    target_dir = get_run_target_dir(base_dir)
+
+    # Convert to WorkflowConfig
+    config = WorkflowConfig(
+        workflow_id=wf_id,
+        name=req.name,
+        steps=steps_config,
+        output_dir=target_dir,
+        initial_inputs=req.initial_inputs
+    )
+
+    # create task in TaskStore with module_id="workflow"
+    task_store.create_task(
+        task_id=task_id,
+        module_id="workflow",
+        filename=req.name,
+        target_dir=target_dir
+    )
+
+    # Submit execution to background executor
+    executor.submit(run_workflow_task, task_id, config)
+
+    return {"task_id": task_id, "workflow_id": wf_id, "status": "pending"}
 
 
 # Display/Xauthority prober helper for Linux
