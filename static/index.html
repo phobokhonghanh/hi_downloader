@@ -8,445 +8,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap"
         rel="stylesheet">
-    <style>
-        :root {
-            --bg-color: #f8fafc;
-            /* Nền xám xanh cực nhẹ, sang trọng */
-            --panel-bg: #ffffff;
-            /* Trắng tinh khiết */
-            --panel-border: #e2e8f0;
-            /* Đường viền nhẹ tinh tế */
-            --primary: #2563eb;
-            /* Xanh Royal Blue hiện đại */
-            --primary-hover: #1d4ed8;
-            --text-color: #0f172a;
-            /* Chữ tối màu chuyên nghiệp */
-            --text-muted: #64748b;
-            /* Chữ xám */
-            --input-bg: #f8fafc;
-            --input-border: #cbd5e1;
-            --terminal-bg: #f1f5f9;
-            /* Terminal nền xám nhạt */
-            --border-radius: 4px;
-            /* Bo góc cực nhẹ đồng bộ */
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: 'Inter', sans-serif;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 1400px;
-            background-color: var(--panel-bg);
-            border: 1px solid var(--panel-border);
-            border-radius: var(--border-radius);
-            padding: 30px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
-        }
-
-        /* HEADER */
-        header {
-            border-bottom: 1px solid var(--panel-border);
-            padding-bottom: 18px;
-            margin-bottom: 25px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .header-title-group h1 {
-            font-size: 1.6rem;
-            font-weight: 800;
-            letter-spacing: -0.5px;
-            color: #0f172a;
-        }
-
-        .header-title-group .sub {
-            color: var(--text-muted);
-            font-size: 0.75rem;
-            letter-spacing: 0.5px;
-            font-weight: 500;
-            margin-top: 3px;
-        }
-
-        /* GRID LAYOUT FOR MAIN CONTENT */
-        .app-grid {
-            display: grid;
-            grid-template-columns: 0.85fr 1.15fr;
-            gap: 25px;
-            margin-bottom: 25px;
-        }
-
-        @media (max-width: 850px) {
-            .app-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        /* PANEL BOARDS */
-        .panel {
-            background-color: #ffffff;
-            border: 1px solid var(--panel-border);
-            border-radius: var(--border-radius);
-            padding: 25px;
-            min-width: 0;
-        }
-
-        .panel-header {
-            font-size: 0.8rem;
-            font-weight: 800;
-            letter-spacing: 0.8px;
-            text-transform: uppercase;
-            color: var(--text-muted);
-            border-bottom: 1px solid var(--panel-border);
-            padding-bottom: 8px;
-            margin-bottom: 20px;
-        }
-
-        /* FORM CONTROLS */
-        .form-group {
-            margin-bottom: 18px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 6px;
-            font-size: 0.7rem;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-            color: var(--text-muted);
-        }
-
-        .input-group {
-            display: flex;
-            align-items: center;
-        }
-
-        input[type="text"],
-        input[type="number"],
-        select {
-            width: 100%;
-            padding: 11px 14px;
-            background: var(--input-bg);
-            border: 1px solid var(--input-border);
-            border-radius: var(--border-radius);
-            color: var(--text-color);
-            font-size: 0.88rem;
-            outline: none;
-            transition: all 0.15s ease-in-out;
-        }
-
-        input[type="text"]:focus,
-        input[type="number"]:focus,
-        select:focus {
-            border-color: var(--primary);
-            background-color: #fff;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
-        }
-
-        /* FOLDER ICON BUTTON */
-        .btn-folder-select {
-            background: var(--input-bg);
-            border: 1px solid var(--input-border);
-            border-radius: var(--border-radius);
-            color: var(--text-muted);
-            padding: 10px 14px;
-            margin-left: 8px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.15s ease;
-        }
-
-        .btn-folder-select:hover {
-            border-color: var(--primary);
-            background-color: rgba(37, 99, 235, 0.05);
-            color: var(--primary);
-        }
-
-        /* BUTTONS */
-        .btn {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: var(--border-radius);
-            color: #fff;
-            font-size: 0.82rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            text-align: center;
-        }
-
-        .btn-outline-blue {
-            background: transparent;
-            border: 1px solid var(--primary);
-            color: var(--primary);
-        }
-
-        .btn-outline-blue:hover {
-            background: rgba(37, 99, 235, 0.05);
-        }
-
-        .btn-solid-blue {
-            background: var(--primary);
-            border: 1px solid var(--primary);
-        }
-
-        .btn-solid-blue:hover {
-            background: var(--primary-hover);
-        }
-
-        .btn-small-cancel {
-            background: transparent;
-            color: #ef4444;
-            border: 1px solid rgba(239, 68, 68, 0.2);
-            padding: 3px 6px;
-            font-size: 0.58rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            cursor: pointer;
-            border-radius: var(--border-radius);
-            transition: all 0.15s;
-        }
-
-        .btn-small-cancel:hover {
-            background: rgba(239, 68, 68, 0.05);
-        }
-
-        .btn-small-copy {
-            background: transparent;
-            color: var(--primary);
-            border: 1px solid rgba(37, 99, 235, 0.25);
-            padding: 3px 6px;
-            font-size: 0.58rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            cursor: pointer;
-            border-radius: var(--border-radius);
-            transition: all 0.15s;
-        }
-
-        .btn-small-copy:hover {
-            background: rgba(37, 99, 235, 0.05);
-        }
-
-        .btn-small-folder {
-            background: transparent;
-            color: #059669;
-            border: 1px solid rgba(16, 185, 129, 0.3);
-            padding: 3px 6px;
-            font-size: 0.58rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            cursor: pointer;
-            border-radius: var(--border-radius);
-            transition: all 0.15s;
-        }
-
-        .btn-small-folder:hover {
-            background: rgba(16, 185, 129, 0.08);
-        }
-
-        /* ANALYSIS BOX */
-        .analysis-box {
-            background: #f8fafc;
-            border: 1px solid rgba(37, 99, 235, 0.15);
-            border-radius: var(--border-radius);
-            padding: 18px;
-            margin-bottom: 18px;
-            display: none;
-        }
-
-        .analysis-summary {
-            font-size: 0.8rem;
-            line-height: 1.5;
-            color: var(--text-color);
-            margin-bottom: 12px;
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        .flex-row {
-            display: flex;
-            gap: 12px;
-        }
-
-        .flex-row .form-group {
-            flex: 1;
-        }
-
-        /* TASK QUEUE CARDS */
-        .task-list {
-            max-height: 380px;
-            overflow-y: auto;
-        }
-
-        .task-card {
-            background: #f8fafc;
-            border: 1px solid var(--panel-border);
-            border-radius: var(--border-radius);
-            padding: 12px 15px;
-            margin-bottom: 10px;
-        }
-
-        .task-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 6px;
-            gap: 10px;
-        }
-
-        .task-title {
-            font-size: 0.78rem;
-            font-weight: 700;
-            max-width: 60%;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            font-family: 'JetBrains Mono', monospace;
-            color: #0f172a;
-        }
-
-        .status-badge {
-            font-size: 0.58rem;
-            padding: 2px 5px;
-            border-radius: var(--border-radius);
-            text-transform: uppercase;
-            font-weight: 700;
-        }
-
-        .status-downloading {
-            background: rgba(37, 99, 235, 0.08);
-            color: #2563eb;
-        }
-
-        .status-merging {
-            background: rgba(147, 51, 234, 0.08);
-            color: #9333ea;
-        }
-
-        .status-completed {
-            background: rgba(22, 163, 74, 0.08);
-            color: #16a34a;
-        }
-
-        .status-failed {
-            background: rgba(220, 38, 38, 0.08);
-            color: #dc2626;
-        }
-
-        .status-pending {
-            background: rgba(217, 119, 6, 0.08);
-            color: #d97706;
-        }
-
-        .status-canceled {
-            background: rgba(100, 116, 139, 0.08);
-            color: #64748b;
-        }
-
-        .progress-track {
-            width: 100%;
-            height: 3px;
-            background: #e2e8f0;
-            margin-bottom: 6px;
-        }
-
-        .progress-bar {
-            height: 100%;
-            background: var(--primary);
-            width: 0%;
-            transition: width 0.2s;
-        }
-
-        .task-meta {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.68rem;
-            color: var(--text-muted);
-            font-family: 'JetBrains Mono', monospace;
-            flex-wrap: wrap;
-            gap: 4px;
-        }
-
-        /* LIVE CONSOLE LOG */
-        .terminal-panel {
-            background-color: var(--terminal-bg);
-            border: 1px solid var(--panel-border);
-            border-radius: var(--border-radius);
-            padding: 12px 18px;
-        }
-
-        .terminal-header {
-            font-size: 0.68rem;
-            font-weight: 800;
-            color: var(--text-muted);
-            margin-bottom: 8px;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-            border-bottom: 1px solid var(--panel-border);
-            padding-bottom: 5px;
-        }
-
-        .terminal-body {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.7rem;
-            line-height: 1.4;
-            color: #475569;
-            max-height: 380px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-        }
-
-        .terminal-line {
-            margin-bottom: 2px;
-        }
-
-        .btn-scroll-bottom {
-            position: absolute;
-            bottom: 15px;
-            right: 25px;
-            width: 36px;
-            height: 36px;
-            background-color: var(--primary);
-            color: #ffffff;
-            border: none;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
-            z-index: 10;
-            transition: all 0.2s ease;
-        }
-
-        .btn-scroll-bottom:hover {
-            transform: translateY(-2px) scale(1.05);
-            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.45);
-            background-color: #1d4ed8;
-        }
-    </style>
+    <link rel="stylesheet" href="/static/css/style.css?v=1">
 </head>
 
 <body>
@@ -458,21 +20,48 @@
                 <h1>Bilibili Downloader</h1>
                 <div class="sub">Hệ thống trích xuất và tải luồng đa tuyến</div>
             </div>
-            <div class="header-dir-group" style="display: flex; align-items: center; gap: 8px;">
-                <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); white-space: nowrap;">THƯ
-                    MỤC LƯU:</label>
-                <div class="input-group" style="display: flex; align-items: center; gap: 4px;">
-                    <input type="text" id="custom-output-dir" readonly
-                        style="width: 220px; font-size: 0.72rem; padding: 6px 10px; background: #f1f5f9;"
-                        placeholder="Chọn thư mục..." title="">
-                    <button type="button" class="btn-folder-select" id="btn-select-dir" title="Chọn thư mục từ hệ thống"
-                        style="padding: 5px 8px;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z">
-                            </path>
-                        </svg>
-                    </button>
+            <div class="header-controls-container" style="display: flex; flex-direction: column; gap: 8px; align-items: flex-end;">
+                <!-- THƯ MỤC LƯU -->
+                <div class="header-dir-group" style="display: flex; align-items: center; gap: 8px;">
+                    <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); white-space: nowrap; margin-bottom: 0;">THƯ MỤC LƯU:</label>
+                    <div class="input-group" style="display: flex; align-items: center; gap: 4px;">
+                        <input type="text" id="custom-output-dir" readonly
+                            style="width: 220px; font-size: 0.72rem; padding: 6px 10px; background: #f1f5f9;"
+                            placeholder="Chọn thư mục..." title="">
+                        <button type="button" class="btn-folder-select" id="btn-select-dir" title="Chọn thư mục từ hệ thống"
+                            style="padding: 5px 8px; margin-left: 0; display: flex; align-items: center; justify-content: center; height: 28px; width: 34px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z">
+                                </path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <!-- FILE PROXY -->
+                <div class="header-proxy-group" style="display: flex; align-items: center; gap: 8px;">
+                    <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); white-space: nowrap; margin-bottom: 0;">FILE PROXY:</label>
+                    <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                        <div class="input-group" style="display: flex; align-items: center; gap: 4px;">
+                            <input type="text" id="custom-proxy-file" readonly
+                                style="width: 220px; font-size: 0.72rem; padding: 6px 10px; background: #f1f5f9;"
+                                placeholder="Mặc định hệ thống..." title="">
+                            <button type="button" class="btn-folder-select" id="btn-select-proxy" title="Chọn file proxy từ hệ thống"
+                                style="padding: 5px 8px; margin-left: 0; display: flex; align-items: center; justify-content: center; height: 28px; width: 34px;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+                        <span style="font-size: 0.56rem; color: var(--text-muted); margin-top: 3px; font-weight: 500; text-align: left; max-width: 220px; line-height: 1.25; font-family: inherit;">
+                            * Cấu trúc mỗi dòng: ip:port:username:password (bỏ qua dòng chú thích # hoặc dòng trống)
+                        </span>
+                    </div>
                 </div>
             </div>
         </header>
@@ -494,6 +83,15 @@
 
                 <button type="button" class="btn btn-outline-blue" id="btn-analyze" style="margin-bottom: 20px;">Tìm
                     kiếm</button>
+
+                <!-- LỊCH SỬ TÌM KIẾM -->
+                <div class="form-group" id="history-section" style="margin-bottom: 20px;">
+                    <div class="panel-header" style="font-size: 0.72rem; border-bottom: none; padding-bottom: 5px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <span>Lịch sử tìm kiếm</span>
+                        <button type="button" class="btn-small-clear" id="btn-clear-history" style="color: #ef4444; border: none; background: none; font-size: 0.65rem; cursor: pointer; text-transform: lowercase; font-family: inherit; font-weight: 700;">xóa hết</button>
+                    </div>
+                    <div id="history-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; padding-right: 4px;"></div>
+                </div>
 
                 <!-- KẾT QUẢ PHÂN TÍCH (Chỉ hiện khi phân tích thành công) -->
                 <div class="analysis-box" id="analysis-box">
@@ -536,7 +134,7 @@
             <div class="panel">
                 <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
                     <span>2. Hàng chờ tải (Queue)</span>
-                    <button type="button" class="btn-small-folder" onclick="clearQueue()"
+                    <button type="button" class="btn-small-folder" id="btn-clear-queue"
                         style="color: #64748b; border-color: #cbd5e1; text-transform: lowercase;">xóa hàng chờ</button>
                 </div>
                 <div class="queue-stats-bar"
@@ -567,10 +165,10 @@
             <div class="terminal-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <span>Nhật ký hệ thống thời gian thực</span>
                 <div style="display: flex; gap: 8px;">
-                    <button type="button" class="btn-small-folder" onclick="clearLogs()"
+                    <button type="button" class="btn-small-folder" id="btn-clear-logs"
                         style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3); text-transform: lowercase;">xóa
                         log</button>
-                    <button type="button" class="btn-small-folder" onclick="copyLogs()"
+                    <button type="button" class="btn-small-folder" id="btn-copy-logs"
                         style="color: #475569; border-color: #cbd5e1; text-transform: lowercase;">sao chép log</button>
                 </div>
             </div>
@@ -588,422 +186,7 @@
 
     </div>
 
-    <script>
-        const btnAnalyze = document.getElementById('btn-analyze');
-        const btnDownload = document.getElementById('btn-download');
-        const btnSelectDir = document.getElementById('btn-select-dir');
-
-        const analysisBox = document.getElementById('analysis-box');
-        const analysisTitle = document.getElementById('analysis-title');
-        const analysisSummary = document.getElementById('analysis-summary');
-
-        const qualitySelectorGroup = document.getElementById('quality-selector-group');
-        const qualitySelect = document.getElementById('quality-select');
-
-        const spacePagesGroup = document.getElementById('space-pages-group');
-        const pageStart = document.getElementById('page-start');
-        const pageEnd = document.getElementById('page-end');
-
-        const tasksContainer = document.getElementById('tasks-container');
-        const queueEmptyMsg = document.getElementById('queue-empty-msg');
-        const customOutputDir = document.getElementById('custom-output-dir');
-        const terminalBody = document.getElementById('terminal-body');
-        const btnScrollBottom = document.getElementById('btn-scroll-bottom');
-
-        let userIsScrolledUp = false;
-
-        terminalBody.addEventListener('scroll', () => {
-            const threshold = 30;
-            const distanceToBottom = terminalBody.scrollHeight - terminalBody.clientHeight - terminalBody.scrollTop;
-            if (distanceToBottom > threshold) {
-                userIsScrolledUp = true;
-                btnScrollBottom.style.display = 'flex';
-            } else {
-                userIsScrolledUp = false;
-                btnScrollBottom.style.display = 'none';
-            }
-        });
-
-        btnScrollBottom.addEventListener('click', () => {
-            userIsScrolledUp = false;
-            btnScrollBottom.style.display = 'none';
-            terminalBody.scrollTo({
-                top: terminalBody.scrollHeight,
-                behavior: 'smooth'
-            });
-        });
-
-        let currentAnalyzedUrl = '';
-        let currentAnalyzedType = '';
-        let currentWorkingBrowser = null;
-        let allTasks = [];
-
-        function getFilename(path) {
-            return path.split(/[/\\]/).pop() || path;
-        }
-
-        function truncatePath(path, maxDirs = 3) {
-            if (!path) return '';
-            const parts = path.split(/[/\\]/).filter(Boolean);
-            if (parts.length <= maxDirs) return path;
-            const prefix = path.startsWith('/') ? '.../' : '...\\';
-            return prefix + parts.slice(-maxDirs).join('/');
-        }
-
-        function updateDirDisplay(fullPath) {
-            if (!fullPath) return;
-            customOutputDir.dataset.fullPath = fullPath;
-            customOutputDir.value = truncatePath(fullPath, 3);
-            customOutputDir.title = fullPath;
-        }
-
-        async function checkSystem() {
-            try {
-                const res = await fetch('/api/system');
-                const data = await res.json();
-                updateDirDisplay(data.download_dir);
-            } catch (err) {
-                console.error("Lỗi quét hệ thống:", err);
-            }
-        }
-
-        // Click Chọn thư mục từ hộp thoại hệ thống
-        btnSelectDir.addEventListener('click', async () => {
-            btnSelectDir.disabled = true;
-            try {
-                const res = await fetch('/api/select-directory', { method: 'POST' });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.status === 'success' && data.path) {
-                        updateDirDisplay(data.path);
-                    }
-                } else {
-                    let errMsg = "Lỗi không xác định";
-                    try {
-                        const err = await res.json();
-                        errMsg = err.message || err.detail || JSON.stringify(err);
-                    } catch (e) {
-                        errMsg = await res.text();
-                    }
-                    alert("Không thể chọn thư mục: " + errMsg);
-                }
-            } catch (e) {
-                alert("Lỗi kết nối hộp thoại chọn thư mục.");
-            } finally {
-                btnSelectDir.disabled = false;
-            }
-        });
-
-        // Tìm kiếm (Phân tích đường dẫn)
-        btnAnalyze.addEventListener('click', async () => {
-            const url = document.getElementById('url').value;
-            if (!url) {
-                alert("Vui lòng nhập đường dẫn video!");
-                return;
-            }
-
-            btnAnalyze.textContent = "Đang tìm kiếm...";
-            btnAnalyze.disabled = true;
-            analysisBox.style.display = 'none';
-
-            try {
-                const res = await fetch('/api/analyze', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        url: url,
-                        cookies_browser: null
-                    })
-                });
-
-                if (res.ok) {
-                    const data = await res.json();
-                    currentAnalyzedUrl = url;
-                    currentAnalyzedType = data.type;
-                    currentWorkingBrowser = data.working_browser;
-
-                    analysisBox.style.display = 'block';
-
-                    if (data.type === 'video') {
-                        analysisTitle.textContent = "KẾT QUẢ PHÂN TÍCH: VIDEO";
-                        analysisSummary.innerHTML = `TIÊU ĐỀ: ${data.title}<br>KÊNH: ${data.uploader}`;
-
-                        qualitySelectorGroup.style.display = 'block';
-                        spacePagesGroup.style.display = 'none';
-
-                        qualitySelect.innerHTML = '';
-                        data.qualities.forEach(q => {
-                            const opt = document.createElement('option');
-                            opt.value = q.value;
-                            opt.textContent = q.label;
-                            qualitySelect.appendChild(opt);
-                        });
-                    } else if (data.type === 'space') {
-                        analysisTitle.textContent = "KẾT QUẢ PHÂN TÍCH: SPACE PROFILE";
-                        analysisSummary.innerHTML = `KÊNH/PROFILE: ${data.title}<br>TỔNG VIDEO: ${data.total_videos} videos (${data.total_pages} trang)`;
-
-                        qualitySelectorGroup.style.display = 'none';
-                        spacePagesGroup.style.display = 'block';
-                        pageStart.max = data.total_pages;
-                        pageEnd.max = data.total_pages;
-                        pageEnd.value = data.total_pages;
-                    }
-                } else {
-                    const err = await res.json();
-                    alert("Lỗi: " + err.detail);
-                }
-            } catch (e) {
-                alert("Lỗi kết nối server.");
-            } finally {
-                btnAnalyze.textContent = "Tìm kiếm";
-                btnAnalyze.disabled = false;
-            }
-        });
-
-        // Bắt đầu tải xuống
-        btnDownload.addEventListener('click', async () => {
-            const targetPath = customOutputDir.dataset.fullPath || customOutputDir.value.trim() || null;
-            const reqBody = {
-                url: currentAnalyzedUrl,
-                cookies_browser: currentWorkingBrowser,
-                output_dir: targetPath
-            };
-
-            if (currentAnalyzedType === 'video') {
-                reqBody.quality = qualitySelect.value;
-            } else if (currentAnalyzedType === 'space') {
-                reqBody.page_start = parseInt(pageStart.value);
-                reqBody.page_end = parseInt(pageEnd.value);
-                const maxV = parseInt(document.getElementById('max-videos').value);
-                if (maxV && maxV > 0) {
-                    reqBody.max_videos = maxV;
-                }
-            }
-
-            try {
-                const res = await fetch('/api/download', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(reqBody)
-                });
-
-                if (res.ok) {
-                    // Giữ nguyên bảng cấu hình phân tích theo đúng yêu cầu
-                    updateTasks();
-                } else {
-                    alert("Lỗi tạo tiến trình.");
-                }
-            } catch (e) {
-                alert("Không thể gửi lệnh tải.");
-            }
-        });
-
-        window.copyLogs = function () {
-            const lines = Array.from(document.querySelectorAll('.terminal-line')).map(el => el.textContent);
-            if (lines.length === 0) {
-                alert("Nhật ký trống.");
-                return;
-            }
-            navigator.clipboard.writeText(lines.join('\n')).then(() => {
-                alert("Đã sao chép toàn bộ nhật ký hệ thống!");
-            }).catch(err => {
-                alert("Lỗi sao chép nhật ký: " + err);
-            });
-        };
-
-        window.clearQueue = async function () {
-            try {
-                await fetch('/api/tasks/clear', { method: 'POST' });
-                updateTasks();
-                updateLogs();
-            } catch (e) {
-                console.error("Lỗi xóa hàng chờ:", e);
-            }
-        };
-
-        window.cancelTask = async function (taskId) {
-            if (!confirm("Hủy tiến trình tải này?")) return;
-            try {
-                await fetch(`/api/tasks/${taskId}/cancel`, { method: 'POST' });
-                updateTasks();
-            } catch (e) {
-                console.error(e);
-            }
-        };
-
-        window.openFolder = async function (taskId) {
-            try {
-                const res = await fetch(`/api/tasks/${taskId}/open-folder`, { method: 'POST' });
-                if (!res.ok) {
-                    const err = await res.json();
-                    alert("Không thể mở thư mục: " + (err.detail || err.message));
-                }
-            } catch (e) {
-                alert("Lỗi mở thư mục: " + e);
-            }
-        };
-
-        window.copyErrorText = function (btn, taskId) {
-            const task = allTasks.find(t => t.id === taskId);
-            if (task && task.error) {
-                const cleanMsg = task.error.replace(/\u001b\[[0-9;]*m/g, "");
-                navigator.clipboard.writeText(cleanMsg).then(() => {
-                    const originalText = btn.textContent;
-                    btn.textContent = "đã sao chép";
-                    setTimeout(() => { btn.textContent = originalText; }, 1500);
-                }).catch(err => {
-                    alert("Không thể sao chép: " + err);
-                });
-            }
-        };
-
-        async function updateTasks() {
-            try {
-                const res = await fetch('/api/tasks');
-                const tasks = await res.json();
-                allTasks = tasks;
-
-                let waitingCount = 0;
-                let doneCount = 0;
-                let runningCount = 0;
-                let errorCount = 0;
-                let totalTime = 0;
-
-                tasks.forEach(t => {
-                    if (t.status === 'pending') waitingCount++;
-                    else if (t.status === 'completed') doneCount++;
-                    else if (t.status === 'downloading' || t.status === 'merging') runningCount++;
-                    else if (t.status === 'failed') errorCount++;
-
-                    totalTime += t.elapsed_time || 0;
-                });
-
-                document.getElementById('stat-waiting').textContent = waitingCount;
-                document.getElementById('stat-done').textContent = doneCount;
-                document.getElementById('stat-running').textContent = runningCount;
-                document.getElementById('stat-error').textContent = errorCount;
-                document.getElementById('queue-total-time').textContent = Math.round(totalTime) + 's';
-
-                if (tasks.length > 0) {
-                    queueEmptyMsg.style.display = 'none';
-                } else {
-                    queueEmptyMsg.style.display = 'block';
-                    tasksContainer.innerHTML = '';
-                    tasksContainer.appendChild(queueEmptyMsg);
-                    return;
-                }
-
-                tasksContainer.innerHTML = '';
-                tasksContainer.appendChild(queueEmptyMsg);
-
-                tasks.forEach(task => {
-                    const card = document.createElement('div');
-                    card.className = 'task-card';
-
-                    const title = task.filename || task.url;
-
-                    let statusLabel = task.status;
-                    if (task.status === 'merging') statusLabel = 'merging';
-                    else if (task.status === 'downloading') statusLabel = 'downloading';
-                    else if (task.status === 'completed') statusLabel = 'completed';
-                    else if (task.status === 'pending') statusLabel = 'pending';
-                    else if (task.status === 'failed') statusLabel = 'failed';
-                    else if (task.status === 'canceled') statusLabel = 'canceled';
-
-                    let actionsHtml = '';
-                    if (task.status === 'downloading' || task.status === 'pending') {
-                        actionsHtml = `<button class="btn-small-cancel" onclick="cancelTask('${task.id}')">hủy</button>`;
-                    } else if (task.status === 'failed') {
-                        actionsHtml = `<button class="btn-small-copy" onclick="copyErrorText(this, '${task.id}')">sao chép lỗi</button>`;
-                    } else if (task.status === 'completed') {
-                        actionsHtml = `<button class="btn-small-folder" onclick="openFolder('${task.id}')">mở thư mục</button>`;
-                    }
-
-                    const cleanError = task.error ? task.error.replace(/\u001b\[[0-9;]*m/g, "") : "";
-
-                    let metaInfo = '';
-                    if (task.status === 'failed') {
-                        metaInfo = `
-                            <div>${statusLabel}, ${task.progress}%, ${task.elapsed_time}s</div>
-                            <div style="width: 100%; color: #dc2626; font-size: 0.68rem; margin-top: 6px; word-break: break-all; white-space: normal; line-height: 1.35;">lỗi: ${cleanError}</div>
-                        `;
-                    } else {
-                        metaInfo = `<div>${statusLabel}, ${task.progress}%, ${task.elapsed_time}s</div>`;
-                    }
-
-                    card.innerHTML = `
-                        <div class="task-card-header">
-                            <div class="task-title" title="${title}">${title}</div>
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                ${actionsHtml}
-                                <span class="status-badge status-${task.status}">${statusLabel}</span>
-                            </div>
-                        </div>
-                        <div class="progress-track">
-                            <div class="progress-bar" style="width: ${task.progress}%"></div>
-                        </div>
-                        <div class="task-meta">
-                            ${metaInfo}
-                        </div>
-                    `;
-                    tasksContainer.appendChild(card);
-                });
-            } catch (err) {
-                console.error("Lỗi cập nhật hàng chờ:", err);
-            }
-        }
-
-        async function clearLogs() {
-            try {
-                await fetch('/api/logs/clear', { method: 'POST' });
-                terminalBody.innerHTML = '<div class="terminal-line" style="color: var(--text-muted);">[LOG] Đã xóa toàn bộ nhật ký.</div>';
-            } catch (err) {
-                console.error("Lỗi xóa log:", err);
-            }
-        }
-
-        async function updateLogs() {
-            try {
-                const res = await fetch('/api/logs');
-                const logs = await res.json();
-
-                const wasAtBottom = !userIsScrolledUp;
-
-                terminalBody.innerHTML = '';
-                if (!logs || logs.length === 0) {
-                    terminalBody.innerHTML = '<div class="terminal-line" style="color: var(--text-muted);">[LOG] Hệ thống đang sẵn sàng...</div>';
-                    return;
-                }
-
-                logs.forEach(item => {
-                    const div = document.createElement('div');
-                    div.className = 'terminal-line';
-
-                    let color = '#38bdf8';
-                    if (item.level === 'SUCCESS') color = '#4ade80';
-                    else if (item.level === 'WARNING') color = '#facc15';
-                    else if (item.level === 'ERROR') color = '#f87171';
-
-                    if (typeof item === 'object' && item.time && item.message) {
-                        div.innerHTML = `<span style="color: #64748b;">[${item.time}]</span> <span style="color: ${color}; font-weight: 700;">[${item.level}]</span> ${item.message}`;
-                    } else {
-                        div.textContent = typeof item === 'string' ? item : JSON.stringify(item);
-                    }
-                    terminalBody.appendChild(div);
-                });
-
-                if (wasAtBottom) {
-                    terminalBody.scrollTop = terminalBody.scrollHeight;
-                }
-            } catch (err) {
-                console.error("Lỗi cập nhật log:", err);
-            }
-        }
-
-        checkSystem();
-        setInterval(updateTasks, 1500);
-        setInterval(updateLogs, 2000);
-    </script>
+    <script src="/static/js/app.js?v=1"></script>
 </body>
 
 </html>

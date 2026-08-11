@@ -21,6 +21,7 @@ hi_downloader.log
 .env
 config.json
 scratch/
+.agents/
 
 # OS junk
 .DS_Store
