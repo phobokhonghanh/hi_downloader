@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 from fastapi import HTTPException
-from app import run_workflow, WorkflowRunRequest, StepRunRequest
+from app import run_workflow, WorkflowRunRequest, StepRunRequest, get_modules
 from core.base_module import ModuleMetadata, BaseModule
 
 
@@ -160,6 +160,12 @@ class TestWorkflowAPI(unittest.TestCase):
             run_workflow(req)
         self.assertEqual(context.exception.status_code, 400)
         self.assertIn("bị trùng lặp", context.exception.detail)
+
+    def test_get_modules_includes_subtitle(self):
+        modules = get_modules()
+        module_ids = [m["module_id"] for m in modules]
+        self.assertIn("subtitle", module_ids)
+        self.assertIn("downloader", module_ids)
 
 
 if __name__ == "__main__":

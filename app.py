@@ -9,7 +9,7 @@ import json
 import threading
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
-from fastapi import FastAPI, BackgroundTasks, HTTPException, Query
+from fastapi import FastAPI, BackgroundTasks, HTTPException, Query, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -20,6 +20,7 @@ from modules.downloader.schemas import AnalyzeRequestData, DownloadRequestData
 from modules.downloader.service import DownloaderService
 from core.module_registry import ModuleRegistry
 from modules.downloader.module import DownloaderModule
+from modules.subtitle.module import SubtitleModule
 from workflow.engine import WorkflowEngine
 from workflow.schemas import WorkflowConfig, StepConfig
 
@@ -214,6 +215,7 @@ downloader_service = DownloaderService(
 
 module_registry = ModuleRegistry()
 module_registry.register(DownloaderModule(downloader_service))
+module_registry.register(SubtitleModule())
 
 workflow_engine = WorkflowEngine(task_store=task_store, module_registry=module_registry)
 
@@ -316,11 +318,32 @@ def get_tasks():
 
 @app.get("/api/system")
 def get_system():
+    system_path = os.path.join(EXE_DIR, "proxies.txt")
+    system_proxy_file = os.path.abspath(system_path) if os.path.exists(system_path) else None
     return {
         "ffmpeg_installed": check_ffmpeg(),
         "download_dir": load_cached_dir(),
-        "proxy_file": load_cached_proxy_file()
+        "proxy_file": load_cached_proxy_file(),
+        "system_proxy_file": system_proxy_file
     }
+
+
+@app.post("/api/proxy-file/clear")
+def clear_proxy_file():
+    try:
+        config = load_cached_config()
+        if "proxy_file" in config:
+            del config["proxy_file"]
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False, indent=4)
+        logging.info("Đã xóa file proxy cá nhân trong cache.")
+        return {"status": "success", "message": "Đã xóa file proxy cá nhân."}
+    except Exception as e:
+        logging.error(f"Lỗi xóa file cache config proxy_file: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": f"Không thể xóa cache: {str(e)}"}
+        )
 
 
 @app.get("/api/logs")
@@ -740,6 +763,243 @@ def select_proxy_file():
             "message": "Không thể kết nối đến giao diện màn hình Desktop của hệ điều hành để chọn file proxy."
         }
     )
+
+
+@app.post("/api/select-video-file")
+def select_video_file():
+    env = get_gui_env()
+    dialog_title = "Chon file video"
+
+    if sys.platform.startswith("linux"):
+        if shutil.which("zenity"):
+            try:
+                cmd = ["zenity", "--file-selection", "--file-filter=*.mp4 *.mkv *.mov *.avi *.webm *.m4v", f"--title={dialog_title}"]
+                output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+                path = output.strip()
+                if path:
+                    abs_path = os.path.abspath(path)
+                    return {"status": "success", "path": abs_path}
+            except subprocess.CalledProcessError as cpe:
+                if cpe.returncode == 1:
+                    logging.info("Nguoi dung da huy chon file video qua Zenity.")
+                    return {"status": "canceled", "path": None}
+                logging.warning(f"Zenity loi hoac thieu DISPLAY: {cpe.stderr.decode('utf-8', errors='ignore')}")
+            except Exception as e:
+                logging.warning(f"Zenity that bai: {e}")
+
+        if shutil.which("kdialog"):
+            try:
+                cmd = ["kdialog", "--getopenfilename", ".", "*.mp4 *.mkv *.mov *.avi *.webm *.m4v", "--title", dialog_title]
+                output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+                path = output.strip()
+                if path:
+                    abs_path = os.path.abspath(path)
+                    return {"status": "success", "path": abs_path}
+            except subprocess.CalledProcessError as cpe:
+                if cpe.returncode == 1:
+                    logging.info("Nguoi dung da huy chon file video qua Kdialog.")
+                    return {"status": "canceled", "path": None}
+                logging.warning(f"Kdialog loi: {cpe.stderr.decode('utf-8', errors='ignore')}")
+            except Exception as e:
+                logging.warning(f"Kdialog that bai: {e}")
+
+    if sys.platform == "darwin":
+        try:
+            cmd = ["osascript", "-e", 'POSIX path of (choose file of type {"mp4", "mkv", "mov", "avi", "webm", "m4v"} with prompt "Chon file video")']
+            output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+            path = output.strip()
+            if path:
+                abs_path = os.path.abspath(path)
+                return {"status": "success", "path": abs_path}
+        except subprocess.CalledProcessError:
+            logging.info("Nguoi dung da huy chon file video qua AppleScript.")
+            return {"status": "canceled", "path": None}
+        except Exception as e:
+            logging.warning(f"AppleScript that bai: {e}")
+
+    try:
+        cmd = [
+            sys.executable,
+            "-c",
+            f"import tkinter as tk; from tkinter import filedialog; root=tk.Tk(); root.withdraw(); root.attributes('-topmost', True); print(filedialog.askopenfilename(filetypes=[('Video files', ('*.mp4', '*.mkv', '*.mov', '*.avi', '*.webm', '*.m4v'))], title='{dialog_title}'))"
+        ]
+        output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+        path = output.strip()
+        if path:
+            abs_path = os.path.abspath(path)
+            return {"status": "success", "path": abs_path}
+        else:
+            logging.info("Nguoi dung da huy chon file video qua Tkinter Subprocess.")
+            return {"status": "canceled", "path": None}
+    except Exception as e:
+        err_msg = str(e)
+        if hasattr(e, 'stderr') and e.stderr:
+            err_msg = e.stderr.strip()
+        logging.error(f"Khong the mo bat ky hop thoai do hoa nao cua OS de chon file video: {err_msg}")
+
+    return JSONResponse(
+        status_code=500,
+        content={
+            "status": "error",
+            "message": "Không thể kết nối đến giao diện màn hình Desktop của hệ điều hành. Vui lòng kiểm tra cổng DISPLAY hoặc khởi chạy lại ứng dụng bằng terminal mặc định ngoài màn hình chính."
+        }
+    )
+
+
+@app.post("/api/select-srt-file")
+def select_srt_file():
+    env = get_gui_env()
+    dialog_title = "Chon file phu de SRT"
+
+    path = None
+    if sys.platform.startswith("linux"):
+        if shutil.which("zenity"):
+            try:
+                cmd = ["zenity", "--file-selection", "--file-filter=*.srt", f"--title={dialog_title}"]
+                output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+                path = output.strip()
+            except subprocess.CalledProcessError as cpe:
+                if cpe.returncode == 1:
+                    logging.info("Nguoi dung da huy chon file srt qua Zenity.")
+                    return {"status": "canceled", "path": None}
+                logging.warning(f"Zenity loi hoac thieu DISPLAY: {cpe.stderr.decode('utf-8', errors='ignore')}")
+            except Exception as e:
+                logging.warning(f"Zenity that bai: {e}")
+
+        if not path and shutil.which("kdialog"):
+            try:
+                cmd = ["kdialog", "--getopenfilename", ".", "*.srt", "--title", dialog_title]
+                output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+                path = output.strip()
+            except subprocess.CalledProcessError as cpe:
+                if cpe.returncode == 1:
+                    logging.info("Nguoi dung da huy chon file srt qua Kdialog.")
+                    return {"status": "canceled", "path": None}
+                logging.warning(f"Kdialog loi: {cpe.stderr.decode('utf-8', errors='ignore')}")
+            except Exception as e:
+                logging.warning(f"Kdialog that bai: {e}")
+
+    if not path and sys.platform == "darwin":
+        try:
+            cmd = ["osascript", "-e", 'POSIX path of (choose file of type {"srt"} with prompt "Chon file phu de SRT")']
+            output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+            path = output.strip()
+        except subprocess.CalledProcessError:
+            logging.info("Nguoi dung da huy chon file srt qua AppleScript.")
+            return {"status": "canceled", "path": None}
+        except Exception as e:
+            logging.warning(f"AppleScript that bai: {e}")
+
+    if not path:
+        try:
+            cmd = [
+                sys.executable,
+                "-c",
+                f"import tkinter as tk; from tkinter import filedialog; root=tk.Tk(); root.withdraw(); root.attributes('-topmost', True); print(filedialog.askopenfilename(filetypes=[('SRT files', '*.srt')], title='{dialog_title}'))"
+            ]
+            output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+            path = output.strip()
+            if not path:
+                logging.info("Nguoi dung da huy chon file srt qua Tkinter Subprocess.")
+                return {"status": "canceled", "path": None}
+        except Exception as e:
+            err_msg = str(e)
+            if hasattr(e, 'stderr') and e.stderr:
+                err_msg = e.stderr.strip()
+            logging.error(f"Khong the mo bat ky hop thoai do hoa nao cua OS de chon file srt: {err_msg}")
+
+    if not path:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": "Không thể kết nối đến giao diện màn hình Desktop của hệ điều hành để chọn file srt."
+            }
+        )
+
+    try:
+        abs_path = os.path.abspath(path)
+        with open(abs_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+        return {"status": "success", "path": abs_path, "content": content}
+    except Exception as e:
+        logging.error(f"Loi doc file srt: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": f"Không thể đọc file srt: {str(e)}"
+            }
+        )
+
+
+class SaveSrtRequest(BaseModel):
+    video_path: str
+    content: str
+
+
+class OpenFileLocationRequest(BaseModel):
+    path: str
+
+
+@app.post("/api/subtitle/save-srt")
+def save_srt(req: SaveSrtRequest):
+    if not req.video_path.strip():
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error", "message": "Đường dẫn tệp video không được để trống."}
+        )
+    
+    try:
+        video_dir = os.path.dirname(req.video_path)
+        video_name = os.path.basename(req.video_path)
+        base_name, _ = os.path.splitext(video_name)
+        srt_filename = base_name + ".srt"
+        srt_path = os.path.join(video_dir, srt_filename)
+        
+        with open(srt_path, "w", encoding="utf-8") as f:
+            f.write(req.content)
+            
+        logging.info(f"Da xuat file SRT thanh cong: {srt_path}")
+        return {"status": "success", "path": os.path.abspath(srt_path)}
+    except Exception as e:
+        logging.error(f"Loi luu file SRT: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": f"Không thể lưu file SRT: {str(e)}"}
+        )
+
+
+@app.post("/api/subtitle/open-file-location")
+def open_file_location(req: OpenFileLocationRequest):
+    path = req.path.strip()
+    if not path:
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error", "message": "Đường dẫn không được để trống."}
+        )
+    
+    if not os.path.exists(path):
+        return JSONResponse(
+            status_code=404,
+            content={"status": "error", "message": "Tệp tin hoặc thư mục không tồn tại."}
+        )
+        
+    try:
+        target = os.path.dirname(path) if os.path.isfile(path) else path
+        if sys.platform == "win32":
+            os.startfile(target)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", target])
+        else:
+            subprocess.Popen(["xdg-open", target])
+        return {"status": "success"}
+    except Exception as e:
+        logging.error(f"Loi mo vi tri file: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": f"Không thể mở vị trí file: {str(e)}"}
+        )
 
 
 @app.get("/")

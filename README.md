@@ -160,3 +160,15 @@ python tests/run_tests.py
    * Nhấn nút **Tải xuống**.
 3. **Theo dõi tiến trình:**
    * Giao diện hiển thị cụ thể: Tốc độ tải, Thời gian đã tải (`elapsed_time`), Trạng thái thử lại (`[LAN THU 1/3]`) nếu xảy ra lỗi, và nút **HUY** để hủy tải bất kỳ lúc nào.
+
+---
+
+## 7. TÍNH NĂNG PHỤ ĐỀ WHISPER (TÙY CHỌN)
+
+Dự án hỗ trợ sinh phụ đề tự động bằng mô hình OpenAI Whisper. Đây là tính năng tùy chọn:
+* **Cài đặt thư viện phụ trợ:**
+  ```bash
+  ./venv/bin/pip install -r requirements-whisper.txt
+  ```
+* **Yêu cầu hệ thống:** Yêu cầu máy tính đã cài đặt `ffmpeg` (xem mục 1.2).
+* **Cách sử dụng:** Sử dụng action `generate_whisper` thông qua API của Module hoặc Workflow Engine của hệ thống backend.
