@@ -1,10 +1,16 @@
 import importlib
+from typing import Callable, Optional
 from modules.subtitle.providers.base import SubtitleGenerationConfig, SubtitleProviderResult
 from modules.subtitle.schemas import SubtitleSegment
 
 
 class OpenAIWhisperRunner:
-    def __call__(self, video_path: str, config: SubtitleGenerationConfig) -> SubtitleProviderResult:
+    def __call__(
+        self,
+        video_path: str,
+        config: SubtitleGenerationConfig,
+        progress_callback: Optional[Callable[[float, str], None]] = None,
+    ) -> SubtitleProviderResult:
         """Dynamically imports the 'whisper' library, loads the requested model,
         runs transcription, and converts the raw outputs to SubtitleProviderResult.
         """
@@ -15,10 +21,17 @@ class OpenAIWhisperRunner:
                 "OpenAI Whisper package is not installed. Please install 'openai-whisper' to use this provider."
             )
 
+        if progress_callback:
+            progress_callback(20.0, "loading model")
         model = whisper.load_model(config.model)
 
+        if progress_callback:
+            progress_callback(40.0, "transcribing")
         # Call transcribe on the model
         result = model.transcribe(video_path, language=config.language, task=config.task)
+
+        if progress_callback:
+            progress_callback(90.0, "formatting")
 
         raw_segments = result.get("segments", [])
         converted_segments = []

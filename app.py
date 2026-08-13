@@ -31,6 +31,8 @@ APP_TITLE = os.getenv("APP_TITLE", "Bilibili Advanced Downloader")
 app = FastAPI(title=APP_TITLE)
 
 # Domain configurations and file config
+from modules.downloader.service import BILIBILI_API_DOMAIN, BILIBILI_VIDEO_BASE_URL
+PROXY_FILE_NAME = 'proxies.txt'
 BILIBILI_SPACE_DOMAIN = "space.bilibili.com"
 DIALOG_TITLE = os.getenv("DIALOG_TITLE", "Chon thu muc luu video Bilibili")
 
@@ -50,10 +52,14 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 os.makedirs(STATIC_DIR, exist_ok=True)
 
 EXE_DIR = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(EXE_DIR, os.getenv("CONFIG_FILE", "config.json"))
+
+from modules.common.paths import get_app_dir
+CONFIG_FILE = os.path.join(get_app_dir("config"), os.getenv("CONFIG_FILE", "config.json"))
+os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
 
 # Setup Logging
-LOG_FILE = os.path.join(EXE_DIR, os.getenv("LOG_FILE", "hi_downloader.log"))
+LOG_FILE = os.path.join(get_app_dir("log"), os.getenv("LOG_FILE", "hi_downloader.log"))
+os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
@@ -156,11 +162,48 @@ def load_cached_proxy_file() -> Optional[str]:
     return None
 
 
+def load_cached_proxy_mode() -> str:
+    config = load_cached_config()
+    mode = config.get("proxy_mode", "system")
+    if mode not in ["system", "custom", "none"]:
+        return "system"
+    return mode
+
+
+def load_cached_proxy_disabled() -> bool:
+    config = load_cached_config()
+    disabled = config.get("proxy_disabled", False)
+    if config.get("proxy_mode") == "none":
+        disabled = True
+    return disabled
+
+
+def save_cached_proxy_disabled(disabled: bool):
+    try:
+        config = load_cached_config()
+        config["proxy_disabled"] = disabled
+        if disabled:
+            config["proxy_mode"] = "none"
+        else:
+            custom = config.get("proxy_file")
+            if custom and os.path.exists(custom) and os.path.isfile(custom):
+                config["proxy_mode"] = "custom"
+            else:
+                config["proxy_mode"] = "system"
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False, indent=4)
+        logging.info(f"Da thiet lap proxy_disabled={disabled}")
+    except Exception as e:
+        logging.error(f"Loi ghi cache config proxy_disabled: {e}")
+
+
 def save_cached_proxy_file(path: str):
     try:
         abs_path = os.path.abspath(path)
         config = load_cached_config()
         config["proxy_file"] = abs_path
+        config["proxy_mode"] = "custom"
+        config["proxy_disabled"] = False
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=4)
         logging.info(f"Da ghi nhan file proxy vao cache: {abs_path}")
@@ -216,6 +259,94 @@ downloader_service = DownloaderService(
 module_registry = ModuleRegistry()
 module_registry.register(DownloaderModule(downloader_service))
 module_registry.register(SubtitleModule())
+
+def app_subtitle_provider_runner(video_path: str, params: dict, progress_callback, cancel_event):
+    from core.base_module import ModuleContext
+    context = ModuleContext(
+        task_id=f"batch_job_{uuid.uuid4().hex[:8]}",
+        input_files=[video_path],
+        output_dir=None,
+        params={
+            "action": "generate_whisper",
+            "video_path": video_path,
+            "model": params.get("model", "base"),
+            "task": params.get("task", "transcribe"),
+            "language": params.get("language")
+        },
+        cancel_event=cancel_event,
+        progress_callback=progress_callback
+    )
+    
+    module = module_registry.get("subtitle")
+    res = module.run(context)
+    if not res.success:
+        if res.canceled or cancel_event.is_set():
+            raise RuntimeError("Task was canceled cooperatively")
+        raise RuntimeError(res.error or "Lỗi nhận diện phụ đề")
+        
+    return {
+        "srt_text": res.metrics.get("srt_text"),
+        "segments": res.metrics.get("segments"),
+        "metadata": res.metrics.get("metadata")
+    }
+
+from modules.subtitle.batch_service import SubtitleBatchService
+subtitle_batch_service = SubtitleBatchService(provider_runner=app_subtitle_provider_runner)
+
+# Initialize Translation Service Cache under isolated app-data path
+translate_cache_dir = os.path.join(get_app_dir("cache"), "translate")
+os.makedirs(translate_cache_dir, exist_ok=True)
+from modules.translate.cache import TranslationCache
+translate_cache = TranslationCache(translate_cache_dir)
+
+# Initialize Credentials Store and Provider factory
+from modules.translate.credentials import GeminiCredentialStore
+from modules.translate.providers.gemini import GeminiTranslateProvider
+translate_credential_store = GeminiCredentialStore()
+
+def translate_provider_factory(api_key: str):
+    return GeminiTranslateProvider(api_key=api_key)
+
+# Initialize Translation Batch Queue Service
+from modules.translate.batch_service import TranslateBatchService
+translate_batch_service = TranslateBatchService(
+    provider_factory=translate_provider_factory,
+    credential_store=translate_credential_store,
+    cache=translate_cache
+)
+
+# Register TranslateModule in Workflow Registry
+from modules.translate.module import TranslateModule
+module_registry.register(TranslateModule(
+    provider_factory=translate_provider_factory,
+    credential_store=translate_credential_store,
+    cache=translate_cache
+))
+
+# Open Location Callback utilizing app.py safe subprocess logic
+def app_open_location_callback(path: str):
+    target = os.path.dirname(path) if os.path.isfile(path) else path
+    if sys.platform == "win32":
+        os.startfile(target)
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", target])
+    else:
+        subprocess.Popen(["xdg-open", target])
+
+# Register Translation Modular APIRouter
+from modules.translate.routes import create_translate_router
+translate_router = create_translate_router(
+    batch_service=translate_batch_service,
+    credential_store=translate_credential_store,
+    provider_factory=translate_provider_factory,
+    open_location_cb=app_open_location_callback
+)
+app.include_router(translate_router)
+
+@app.on_event("shutdown")
+def app_shutdown():
+    subtitle_batch_service.shutdown()
+    translate_batch_service.shutdown()
 
 workflow_engine = WorkflowEngine(task_store=task_store, module_registry=module_registry)
 
@@ -318,14 +449,54 @@ def get_tasks():
 
 @app.get("/api/system")
 def get_system():
-    system_path = os.path.join(EXE_DIR, "proxies.txt")
+    system_path = os.path.join(get_app_dir("config"), PROXY_FILE_NAME)
     system_proxy_file = os.path.abspath(system_path) if os.path.exists(system_path) else None
     return {
         "ffmpeg_installed": check_ffmpeg(),
         "download_dir": load_cached_dir(),
         "proxy_file": load_cached_proxy_file(),
-        "system_proxy_file": system_proxy_file
+        "system_proxy_file": system_proxy_file,
+        "proxy_mode": load_cached_proxy_mode(),
+        "proxy_disabled": load_cached_proxy_disabled()
     }
+
+
+class ProxyModeRequest(BaseModel):
+    mode: str
+
+
+class ProxyDisabledRequest(BaseModel):
+    disabled: bool
+
+
+@app.post("/api/proxy-mode/set")
+def set_proxy_mode(req: ProxyModeRequest):
+    if req.mode not in ["system", "custom", "none"]:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "Chế độ proxy không hợp lệ."})
+    try:
+        config = load_cached_config()
+        config["proxy_mode"] = req.mode
+        if req.mode == "none":
+            config["proxy_disabled"] = True
+        else:
+            config["proxy_disabled"] = False
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False, indent=4)
+        logging.info(f"Đã thiết lập chế độ proxy sang: {req.mode}")
+        return {"status": "success", "mode": req.mode}
+    except Exception as e:
+        logging.error(f"Lỗi thiết lập chế độ proxy: {e}")
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+
+
+@app.post("/api/proxy-disabled/set")
+def set_proxy_disabled(req: ProxyDisabledRequest):
+    try:
+        save_cached_proxy_disabled(req.disabled)
+        return {"status": "success", "proxy_disabled": req.disabled}
+    except Exception as e:
+        logging.error(f"Lỗi thiết lập proxy_disabled: {e}")
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
 
 @app.post("/api/proxy-file/clear")
@@ -334,6 +505,15 @@ def clear_proxy_file():
         config = load_cached_config()
         if "proxy_file" in config:
             del config["proxy_file"]
+        
+        current_mode = config.get("proxy_mode", "system")
+        if current_mode != "none":
+            config["proxy_mode"] = "system"
+        if config.get("proxy_mode") == "none":
+            config["proxy_disabled"] = True
+        else:
+            config["proxy_disabled"] = False
+            
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=4)
         logging.info("Đã xóa file proxy cá nhân trong cache.")
@@ -363,7 +543,7 @@ class ModuleRunRequest(BaseModel):
     output_dir: Optional[str] = None
 
 
-def run_standalone_module_task(task_id: str, module_id: str, params: dict, input_files: list, output_dir: str):
+def run_standalone_module_task(task_id: str, module_id: str, params: dict, input_files: list, output_dir: Optional[str]):
     try:
         module = module_registry.get(module_id)
     except KeyError:
@@ -373,8 +553,21 @@ def run_standalone_module_task(task_id: str, module_id: str, params: dict, input
     # Setup cancel event
     cancel_event = task_store.get_cancel_event(task_id) or threading.Event()
 
-    # Update status to PROCESSING
-    task_store.update_task(task_id, status=TaskStatus.PROCESSING, progress=10.0)
+    # Update status to PROCESSING and set initial milestone to 5% (preparing)
+    task = task_store.get_task(task_id)
+    current_metrics = task.get("metrics", {}) or {} if task else {}
+    updated_metrics = {**current_metrics, "phase": "preparing"}
+    task_store.update_task(task_id, status=TaskStatus.PROCESSING, progress=5.0, metrics=updated_metrics)
+
+    # Thread-safe progress callback preserving existing metrics, clamping, and enforcing monotonic increase
+    def update_progress(pct: float, phase: str = ""):
+        clamped_pct = max(0.0, min(100.0, float(pct)))
+        task = task_store.get_task(task_id)
+        if task:
+            if clamped_pct > task.get("progress", 0.0):
+                current_metrics = task.get("metrics", {}) or {}
+                updated_metrics = {**current_metrics, "phase": phase}
+                task_store.update_task(task_id, progress=clamped_pct, metrics=updated_metrics)
 
     # Build context
     from core.base_module import ModuleContext
@@ -383,7 +576,8 @@ def run_standalone_module_task(task_id: str, module_id: str, params: dict, input
         input_files=input_files,
         output_dir=output_dir,
         params=params,
-        cancel_event=cancel_event
+        cancel_event=cancel_event,
+        progress_callback=update_progress
     )
 
     try:
@@ -422,11 +616,13 @@ def run_module(module_id: str, req: ModuleRunRequest):
         raise HTTPException(status_code=400, detail="Tham số không hợp lệ cho module")
 
     task_id = f"run_{module_id}_{uuid.uuid4().hex[:8]}"
-    base_dir = os.path.abspath(req.output_dir) if req.output_dir else load_cached_dir()
-    os.makedirs(base_dir, exist_ok=True)
-    save_cached_dir(base_dir)
-
-    target_dir = get_run_target_dir(base_dir)
+    if module.metadata.requires_output_dir:
+        base_dir = os.path.abspath(req.output_dir) if req.output_dir else load_cached_dir()
+        os.makedirs(base_dir, exist_ok=True)
+        save_cached_dir(base_dir)
+        target_dir = get_run_target_dir(base_dir)
+    else:
+        target_dir = None
 
     # Create pending task in task_store
     task_store.create_task(
@@ -440,6 +636,266 @@ def run_module(module_id: str, req: ModuleRunRequest):
     executor.submit(run_standalone_module_task, task_id, module_id, req.params, req.input_files, target_dir)
 
     return {"task_id": task_id, "status": "pending"}
+
+
+class ScanFolderRequest(BaseModel):
+    folder_path: str
+
+
+class SaveImportedSrtRequest(BaseModel):
+    source_path: str
+    content: str
+
+
+@app.post("/api/subtitle/scan-folder")
+def api_scan_folder(req: ScanFolderRequest):
+    try:
+        from modules.subtitle.batch_service import scan_video_folder
+        res = scan_video_folder(req.folder_path)
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Lỗi quét thư mục: {str(e)}")
+
+
+@app.post("/api/subtitle/save-imported-srt")
+def api_save_imported_srt(req: SaveImportedSrtRequest):
+    try:
+        from modules.subtitle.batch_service import save_imported_srt
+        res = save_imported_srt(req.source_path, req.content)
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Lỗi lưu file phụ đề: {str(e)}")
+
+
+class CreateBatchRequest(BaseModel):
+    video_paths: list[str]
+    provider: str
+    model: str = "base"
+    language: Optional[str] = None
+    concurrency: int = 2
+
+
+class BatchActionRequest(BaseModel):
+    action: str
+    job_ids: list[str]
+
+
+@app.post("/api/subtitle/batches")
+def api_create_batch(req: CreateBatchRequest):
+    prov = req.provider.lower()
+    if prov == "ocr":
+        raise HTTPException(status_code=400, detail="OCR method is not implemented yet")
+    if prov != "whisper":
+        raise HTTPException(status_code=400, detail="Unsupported provider")
+
+    if not (1 <= req.concurrency <= 10):
+        raise HTTPException(status_code=400, detail="Concurrency must be between 1 and 10")
+
+    if not req.video_paths:
+        raise HTTPException(status_code=400, detail="Danh sách video không được trống")
+
+    seen = set()
+    unique_paths = [p for p in req.video_paths if not (p in seen or seen.add(p))]
+
+    allowed_exts = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
+    for p in unique_paths:
+        if not os.path.exists(p):
+            raise HTTPException(status_code=400, detail=f"Tệp tin không tồn tại: {p}")
+        if not os.path.isfile(p):
+            raise HTTPException(status_code=400, detail=f"Đường dẫn không phải tệp thường: {p}")
+        _, ext = os.path.splitext(p)
+        if ext.lower() not in allowed_exts:
+            raise HTTPException(status_code=400, detail=f"Định dạng tệp không được hỗ trợ: {p}")
+
+    try:
+        provider_params = {
+            "model": req.model,
+            "language": req.language,
+            "task": "transcribe"
+        }
+        batch_id = subtitle_batch_service.create_batch(
+            files=unique_paths,
+            provider_params=provider_params,
+            concurrency=req.concurrency
+        )
+        subtitle_batch_service.start_batch(batch_id)
+        
+        snap = subtitle_batch_service.get_batch_snapshot(batch_id)
+        if snap is None:
+            raise HTTPException(status_code=500, detail="Lỗi tạo snapshot cho batch")
+            
+        snap["provider"] = req.provider
+        snap["provider_params"] = provider_params
+        
+        return {
+            "batch_id": batch_id,
+            "snapshot": snap
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Không thể khởi tạo batch: {str(e)}")
+
+
+@app.get("/api/subtitle/batches/{batch_id}")
+def api_get_batch(batch_id: str):
+    snap = subtitle_batch_service.get_batch_snapshot(batch_id)
+    if not snap:
+        raise HTTPException(status_code=404, detail="Batch không tồn tại")
+        
+    with subtitle_batch_service.lock:
+        batch = subtitle_batch_service.batches.get(batch_id)
+        if batch:
+            snap["provider"] = "whisper"
+            snap["provider_params"] = batch.get("provider_params", {})
+            
+    return snap
+
+
+@app.post("/api/subtitle/batches/{batch_id}/action")
+def api_batch_action(batch_id: str, req: BatchActionRequest):
+    act = req.action.lower()
+    if act not in ["cancel", "retry", "save"]:
+        raise HTTPException(status_code=400, detail="Action không hợp lệ")
+
+    if not req.job_ids:
+        raise HTTPException(status_code=400, detail="Danh sách job_ids không được trống")
+
+    snap = subtitle_batch_service.get_batch_snapshot(batch_id)
+    if not snap:
+        raise HTTPException(status_code=404, detail="Batch không tồn tại")
+
+    if act == "cancel":
+        outcomes = subtitle_batch_service.cancel_batch_jobs(batch_id, req.job_ids)
+        return {"success": True, "results": outcomes}
+
+    elif act == "retry":
+        try:
+            outcomes = subtitle_batch_service.retry_batch_jobs(batch_id, req.job_ids)
+            return {"success": True, "results": outcomes}
+        except RuntimeError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    elif act == "save":
+        outcomes = {}
+        for jid in req.job_ids:
+            job_snap = next((j for j in snap["jobs"] if j["job_id"] == jid), None)
+            if not job_snap:
+                outcomes[jid] = {"outcome": "skipped", "reason": "Job không tồn tại trong batch"}
+                continue
+
+            if job_snap["status"] != "done" or not job_snap["srt_text"]:
+                outcomes[jid] = {"outcome": "skipped", "reason": "Job chưa hoàn thành hoặc không có nội dung phụ đề"}
+                continue
+
+            video_path = job_snap["video_path"]
+            try:
+                video_dir = os.path.dirname(video_path)
+                video_name = os.path.basename(video_path)
+                base_name, _ = os.path.splitext(video_name)
+                srt_path = os.path.join(video_dir, base_name + ".srt")
+
+                import tempfile
+                temp_fd, temp_path = tempfile.mkstemp(dir=video_dir, prefix=".tmp_srt_", suffix=".srt")
+                try:
+                    with os.fdopen(temp_fd, "w", encoding="utf-8") as f:
+                        f.write(job_snap["srt_text"])
+                    os.replace(temp_path, srt_path)
+                except Exception as ex:
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                    raise ex
+
+                saved_abs = os.path.abspath(srt_path)
+                subtitle_batch_service.update_job_saved_path(batch_id, jid, saved_abs)
+                outcomes[jid] = {
+                    "outcome": "applied",
+                    "reason": None,
+                    "saved_path": saved_abs
+                }
+            except Exception as e:
+                outcomes[jid] = {"outcome": "skipped", "reason": f"Không thể lưu file: {str(e)}"}
+
+        return {"success": True, "results": outcomes}
+
+
+class UpdateJobSrtRequest(BaseModel):
+    srt_text: str
+    segments: list
+
+
+@app.post("/api/subtitle/batches/{batch_id}/jobs/{job_id}/update-srt")
+def update_job_srt(batch_id: str, job_id: str, req: UpdateJobSrtRequest):
+    if not req.srt_text or not req.srt_text.strip():
+        raise HTTPException(status_code=400, detail="Nội dung phụ đề không được để trống")
+
+    if not isinstance(req.segments, list):
+        raise HTTPException(status_code=400, detail="Danh sách segments không hợp lệ")
+
+    for seg in req.segments:
+        if not isinstance(seg, dict):
+            raise HTTPException(status_code=400, detail="Segment phải là một đối tượng")
+        required_keys = {"index", "start_ms", "end_ms", "text"}
+        if not required_keys.issubset(seg.keys()):
+            raise HTTPException(status_code=400, detail=f"Segment thiếu trường bắt buộc")
+        if not isinstance(seg["index"], int) or not isinstance(seg["start_ms"], int) or not isinstance(seg["end_ms"], int) or not isinstance(seg["text"], str):
+            raise HTTPException(status_code=400, detail="Kiểu dữ liệu của các trường trong segment không hợp lệ")
+
+    snap = subtitle_batch_service.get_batch_snapshot(batch_id)
+    if not snap:
+        raise HTTPException(status_code=404, detail="Batch không tồn tại")
+
+    job_snap = next((j for j in snap["jobs"] if j["job_id"] == job_id), None)
+    if not job_snap:
+        raise HTTPException(status_code=404, detail="Job không tồn tại trong batch")
+
+    if job_snap["status"] != "done":
+        raise HTTPException(status_code=400, detail="Chỉ có thể cập nhật và lưu các tác vụ đã hoàn thành")
+
+    video_path = job_snap["video_path"]
+    try:
+        video_dir = os.path.dirname(video_path)
+        video_name = os.path.basename(video_path)
+        base_name, _ = os.path.splitext(video_name)
+        srt_path = os.path.join(video_dir, base_name + ".srt")
+
+        import tempfile
+        temp_fd, temp_path = tempfile.mkstemp(dir=video_dir, prefix=".tmp_srt_", suffix=".srt")
+        try:
+            with os.fdopen(temp_fd, "w", encoding="utf-8") as f:
+                f.write(req.srt_text)
+            os.replace(temp_path, srt_path)
+        except Exception as ex:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise ex
+
+        saved_abs = os.path.abspath(srt_path)
+        
+        success = subtitle_batch_service.update_job_content(
+            batch_id=batch_id,
+            job_id=job_id,
+            srt_text=req.srt_text,
+            segments=req.segments,
+            saved_path=saved_abs
+        )
+        if not success:
+            raise HTTPException(status_code=500, detail="Không thể cập nhật trạng thái job trong bộ nhớ")
+
+        updated_snap = subtitle_batch_service.get_batch_snapshot(batch_id)
+        
+        return {
+            "status": "success",
+            "saved_path": saved_abs,
+            "snapshot": updated_snap
+        }
+    except Exception as e:
+        logging.error(f"Loi cap nhat va luu file SRT cho job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Không thể cập nhật và lưu file SRT: {str(e)}")
 
 
 class StepRunRequest(BaseModel):
@@ -676,6 +1132,83 @@ def select_directory():
         content={
             "status": "error",
             "message": "Không thể kết nối đến giao diện màn hình Desktop của hệ điều hành. Vui lòng kiểm tra cổng DISPLAY hoặc khởi chạy lại ứng dụng bằng terminal mặc định ngoài màn hình chính."
+        }
+    )
+
+
+@app.post("/api/subtitle/select-video-folder")
+def select_video_folder():
+    env = get_gui_env()
+    dialog_title = "Chọn thư mục chứa video phụ đề"
+
+    if sys.platform.startswith("linux"):
+        if shutil.which("zenity"):
+            try:
+                cmd = ["zenity", "--file-selection", "--directory", f"--title={dialog_title}"]
+                output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+                path = output.strip()
+                if path:
+                    return {"status": "success", "path": os.path.abspath(path)}
+            except subprocess.CalledProcessError as cpe:
+                if cpe.returncode == 1:
+                    logging.info("Nguoi dung da huy chon thu muc video qua Zenity.")
+                    return {"status": "canceled", "path": None}
+                logging.warning(f"Zenity loi: {cpe.stderr.decode('utf-8', errors='ignore')}")
+            except Exception as e:
+                logging.warning(f"Zenity that bai: {e}")
+
+        if shutil.which("kdialog"):
+            try:
+                cmd = ["kdialog", "--getexistingdirectory", ".", "--title", dialog_title]
+                output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+                path = output.strip()
+                if path:
+                    return {"status": "success", "path": os.path.abspath(path)}
+            except subprocess.CalledProcessError as cpe:
+                if cpe.returncode == 1:
+                    logging.info("Nguoi dung da huy chon thu muc video qua Kdialog.")
+                    return {"status": "canceled", "path": None}
+                logging.warning(f"Kdialog loi: {cpe.stderr.decode('utf-8', errors='ignore')}")
+            except Exception as e:
+                logging.warning(f"Kdialog that bai: {e}")
+
+    if sys.platform == "darwin":
+        try:
+            cmd = ["osascript", "-e", f'POSIX path of (choose folder with prompt "{dialog_title}")']
+            output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+            path = output.strip()
+            if path:
+                return {"status": "success", "path": os.path.abspath(path)}
+        except subprocess.CalledProcessError:
+            logging.info("Nguoi dung da huy chon thu muc video qua AppleScript.")
+            return {"status": "canceled", "path": None}
+        except Exception as e:
+            logging.warning(f"AppleScript that bai: {e}")
+
+    try:
+        cmd = [
+            sys.executable,
+            "-c",
+            f"import tkinter as tk; from tkinter import filedialog; root=tk.Tk(); root.withdraw(); root.attributes('-topmost', True); print(filedialog.askdirectory(title='{dialog_title}'))"
+        ]
+        output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+        path = output.strip()
+        if path:
+            return {"status": "success", "path": os.path.abspath(path)}
+        else:
+            logging.info("Nguoi dung da huy chon thu muc video qua Tkinter Subprocess.")
+            return {"status": "canceled", "path": None}
+    except Exception as e:
+        err_msg = str(e)
+        if hasattr(e, 'stderr') and e.stderr:
+            err_msg = e.stderr.strip()
+        logging.error(f"Khong the mo bat ky hop thoai do hoa nao cua OS de chon thu muc video: {err_msg}")
+
+    return JSONResponse(
+        status_code=500,
+        content={
+            "status": "error",
+            "message": "Không thể kết nối đến giao diện màn hình Desktop để chọn thư mục video."
         }
     )
 

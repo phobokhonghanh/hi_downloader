@@ -164,6 +164,14 @@ class SubtitleModule(BaseModule):
 
         action = params["action"]
 
+        # Cooperative check before action
+        if context.cancel_event.is_set():
+            return ModuleResult(success=False, canceled=True, error="Canceled before run")
+
+        # Non-Whisper actions may use a generic preparation progress metric
+        if action != "generate_whisper" and context.progress_callback:
+            context.progress_callback(10.0, "preparing")
+
         try:
             if action == "parse_srt":
                 srt_text = params["srt_text"]
@@ -185,9 +193,23 @@ class SubtitleModule(BaseModule):
                 config = SubtitleGenerationConfig(model=model_val, task=task_val, language=language_val)
 
                 if context.cancel_event.is_set():
-                    return ModuleResult(success=False, canceled=True, error="Canceled before run")
+                    return ModuleResult(success=False, canceled=True, error="Canceled before Whisper loading")
 
-                result = self.whisper_provider.generate(video_path, config)
+                # Define callback for Whisper milestones (mapped to task progress)
+                def whisper_progress(pct: float, phase: str = ""):
+                    if context.progress_callback:
+                        context.progress_callback(pct, phase)
+
+                # Cooperative check before Whisper run
+                if context.cancel_event.is_set():
+                    return ModuleResult(success=False, canceled=True, error="Canceled before Whisper execution")
+
+                result = self.whisper_provider.generate(video_path, config, progress_callback=whisper_progress)
+
+                # Cooperative check after Whisper run
+                if context.cancel_event.is_set():
+                    return ModuleResult(success=False, canceled=True, error="Canceled after Whisper execution")
+
                 return ModuleResult(
                     success=True,
                     metrics={

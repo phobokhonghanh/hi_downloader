@@ -1,0 +1,129 @@
+<div class="download-settings-strip" style="display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap;">
+    <!-- THƯ MỤC LƯU -->
+    <div class="header-dir-group" style="display: flex; flex-direction: column; align-items: flex-start; gap: 6px;">
+        <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); white-space: nowrap; margin-bottom: 0; height: 20px; display: flex; align-items: center;">Lưu:</label>
+        <div class="input-group" style="display: flex; align-items: center; gap: 4px;">
+            <input type="text" id="custom-output-dir" readonly
+                style="width: 220px; font-size: 0.72rem; padding: 6px 10px; background: #f1f5f9;"
+                placeholder="Chọn thư mục..." title="">
+            <button type="button" class="btn-folder-select" id="btn-select-dir" title="Chọn thư mục từ hệ thống"
+                style="padding: 5px 8px; margin-left: 0; display: flex; align-items: center; justify-content: center; height: 28px; width: 34px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z">
+                    </path>
+                </svg>
+            </button>
+        </div>
+    </div>
+    <!-- PROXY -->
+    <div class="header-proxy-group" style="display: flex; flex-direction: column; align-items: flex-start; gap: 6px; position: relative;">
+        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 12px; height: 20px;">
+            <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); white-space: nowrap; margin-bottom: 0;">proxy:</label>
+            <label style="display: flex; align-items: center; gap: 4px; font-size: 0.72rem; font-weight: 600; color: var(--text-color); cursor: pointer; margin-bottom: 0;">
+                <input type="checkbox" id="proxy-disabled-checkbox" style="cursor: pointer; width: 14px; height: 14px;">
+                không dùng
+            </label>
+        </div>
+        <div class="input-group" id="proxy-file-input-group" style="display: flex; align-items: center; gap: 4px;">
+            <input type="text" id="custom-proxy-file" readonly
+                style="width: 220px; font-size: 0.72rem; padding: 6px 10px; background: #f1f5f9;"
+                placeholder="Dùng proxy system mặc định" title="">
+            <button type="button" class="btn-folder-select" id="btn-select-proxy" title="Chọn file proxy từ hệ thống"
+                style="padding: 5px 8px; margin-left: 0; display: flex; align-items: center; justify-content: center; height: 28px; width: 34px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+            </button>
+            <button type="button" class="btn-folder-select" id="btn-clear-proxy" title="Xóa proxy cá nhân"
+                style="padding: 5px 8px; margin-left: 0; display: flex; align-items: center; justify-content: center; height: 28px; width: 34px; color: #ef4444;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <span id="proxy-file-help" style="font-size: 0.56rem; color: var(--text-muted); position: absolute; top: 56px; left: 0; font-weight: 500;">
+            ip:port:user:passw
+        </span>
+    </div>
+</div>
+
+<!-- LEFT PANEL: DOWNLOAD SETTINGS -->
+<div class="panel">
+    <div class="panel-header">
+        <span>1. Cấu hình lượt tải</span>
+    </div>
+
+    <div class="form-group">
+        <label for="url">Đường dẫn URL Bilibili</label>
+        <input type="text" id="url" required
+            placeholder="Dán link video (BV...) hoặc link trang cá nhân (Space)...">
+    </div>
+
+    <button type="button" class="btn btn-outline-blue" id="btn-analyze" style="margin-bottom: 20px;">Tìm
+        kiếm</button>
+
+    <!-- LỊCH SỬ TÌM KIẾM -->
+    <div class="form-group" id="history-section" style="margin-bottom: 20px;">
+        <div class="panel-header" style="font-size: 0.72rem; border-bottom: none; padding-bottom: 5px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span>Lịch sử tìm kiếm</span>
+            <button type="button" class="btn-small-clear" id="btn-clear-history" style="color: #ef4444; border: none; background: none; font-size: 0.65rem; cursor: pointer; text-transform: lowercase; font-weight: 700;">xóa hết</button>
+        </div>
+        <div id="history-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; padding-right: 4px;"></div>
+    </div>
+
+    <!-- KẾT QUẢ PHÂN TÍCH (Chỉ hiện khi phân tích thành công) -->
+    <div class="analysis-box" id="analysis-box">
+        <div class="panel-header" id="analysis-title"
+            style="margin-bottom: 10px; color: var(--primary); font-size: 0.78rem; border-bottom: none; padding-bottom: 0;">
+            Thông tin phân tích
+        </div>
+        <div class="analysis-summary" id="analysis-summary"></div>
+
+        <!-- Cho Video Đơn lẻ -->
+        <div class="form-group" id="quality-selector-group" style="display: none;">
+            <label for="quality-select">Chọn chất lượng video muốn tải</label>
+            <select id="quality-select"></select>
+        </div>
+
+        <!-- Cho Space/Profile -->
+        <div id="space-pages-group" style="display: none;">
+            <div class="flex-row">
+                <div class="form-group">
+                    <label for="page-start">Từ trang</label>
+                    <input type="number" id="page-start" min="1" value="1">
+                </div>
+                <div class="form-group">
+                    <label for="page-end">Đến trang</label>
+                    <input type="number" id="page-end" min="1" value="1">
+                </div>
+            </div>
+            <div class="form-group" style="margin-top: 8px;">
+                <label for="max-videos">Số lượng video muốn tải (tùy chọn)</label>
+                <input type="number" id="max-videos" min="1"
+                    placeholder="Ví dụ: 10 (để trống để tải hết trang)">
+            </div>
+        </div>
+
+        <button type="button" class="btn btn-solid-blue" id="btn-download">Tải xuống</button>
+    </div>
+</div>
+
+<!-- RIGHT PANEL: DOWNLOAD QUEUE -->
+<div class="panel">
+    <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <span>2. Hàng đợi tải video</span>
+        <button type="button" class="btn-small-folder" id="btn-clear-queue"
+            style="color: #64748b; border-color: #cbd5e1; text-transform: lowercase;">xóa hàng chờ</button>
+    </div>
+    <div id="downloader-queue-container"></div>
+</div>
+
+

@@ -1,17 +1,18 @@
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Callable
 
 
 @dataclass
 class ModuleContext:
     task_id: str
     input_files: List[str] = field(default_factory=list)
-    output_dir: str = "."
+    output_dir: Optional[str] = None
     params: Dict[str, Any] = field(default_factory=dict)
     cancel_event: threading.Event = field(default_factory=threading.Event)
     logger: Optional[Any] = None
+    progress_callback: Optional[Callable[[float, str], None]] = None
 
 
 @dataclass
@@ -32,6 +33,7 @@ class ModuleMetadata:
     output_schema: Dict[str, Any] = field(default_factory=dict)
     supports_standalone: bool = True
     supports_workflow: bool = True
+    requires_output_dir: bool = False
 
 
 class BaseModule(ABC):

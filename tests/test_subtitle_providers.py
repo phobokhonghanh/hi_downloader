@@ -63,6 +63,24 @@ class TestSubtitleProviders(unittest.TestCase):
 
         self.assertIs(res, expected_result)
 
+    def test_runner_returns_dict_with_metadata(self):
+        expected_dict = {
+            "segments": [{"index": 1, "start_ms": 0, "end_ms": 1000, "text": "Hello"}],
+            "metadata": {"raw_language": "vi", "model": "base"}
+        }
+
+        def mock_runner(video_path, config):
+            return expected_dict
+
+        provider = WhisperSubtitleProvider(runner=mock_runner)
+        config = SubtitleGenerationConfig()
+        res = provider.generate("/path/to/video.mp4", config)
+
+        self.assertIsInstance(res, SubtitleProviderResult)
+        self.assertEqual(len(res.segments), 1)
+        self.assertEqual(res.segments[0].text, "Hello")
+        self.assertEqual(res.metadata.get("raw_language"), "vi")
+
     def test_invalid_task_or_path(self):
         def dummy_runner(video_path, config):
             return []

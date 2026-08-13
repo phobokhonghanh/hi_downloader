@@ -89,6 +89,50 @@ class TestOpenAIWhisperRunner(unittest.TestCase):
         with self.assertRaises(ValueError):
             runner("/path/to/video.mp4", SubtitleGenerationConfig())
 
+    @patch("importlib.import_module")
+    def test_progress_callback_handled(self, mock_import):
+        mock_whisper = MagicMock()
+        mock_import.return_value = mock_whisper
+        mock_model = MagicMock()
+        mock_whisper.load_model.return_value = mock_model
+        mock_model.transcribe.return_value = {
+            "segments": [{"start": 1.0, "end": 2.0, "text": "Callback test"}]
+        }
+
+        runner = OpenAIWhisperRunner()
+        config = SubtitleGenerationConfig()
+        calls = []
+        def test_cb(pct, phase=""):
+            calls.append((pct, phase))
+
+        res = runner("/path/to/video.mp4", config, progress_callback=test_cb)
+        self.assertEqual(len(res.segments), 1)
+        self.assertEqual(res.segments[0].text, "Callback test")
+        self.assertEqual(calls, [
+            (20.0, "loading model"),
+            (40.0, "transcribing"),
+            (90.0, "formatting")
+        ])
+
+    @patch("importlib.import_module")
+    def test_progress_callback_aborted_on_load_error(self, mock_import):
+        mock_whisper = MagicMock()
+        mock_import.return_value = mock_whisper
+        mock_whisper.load_model.side_effect = RuntimeError("Failed to load model")
+
+        runner = OpenAIWhisperRunner()
+        config = SubtitleGenerationConfig()
+        calls = []
+        def test_cb(pct, phase=""):
+            calls.append((pct, phase))
+
+        with self.assertRaises(RuntimeError):
+            runner("/path/to/video.mp4", config, progress_callback=test_cb)
+
+        self.assertEqual(calls, [
+            (20.0, "loading model")
+        ])
+
 
 if __name__ == "__main__":
     unittest.main()

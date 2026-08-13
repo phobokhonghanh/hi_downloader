@@ -1,0 +1,163 @@
+<!-- LEFT PANEL: TRANSLATION CONFIG -->
+<div class="panel">
+    <div class="panel-header">
+        <span>1. Chọn nguồn dịch</span>
+    </div>
+
+    <!-- SOURCE SELECTOR -->
+    <div class="form-group">
+        <label>Chế độ nguồn</label>
+        <div style="display: flex; gap: 15px; align-items: center; margin-top: 5px;">
+            <label style="display: flex; align-items: center; gap: 4px; font-weight: normal; cursor: pointer; font-size: 0.78rem;">
+                <input type="radio" name="translate-source-mode" value="srt" checked style="cursor: pointer;">
+                Một tệp SRT
+            </label>
+            <label style="display: flex; align-items: center; gap: 4px; font-weight: normal; cursor: pointer; font-size: 0.78rem;">
+                <input type="radio" name="translate-source-mode" value="folder" style="cursor: pointer;">
+                Thư mục SRT
+            </label>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label id="lbl-translate-source-path">Đường dẫn tệp SRT</label>
+        <div style="display: flex; align-items: center;">
+            <input type="text" id="translate-source-path" readonly
+                style="flex: 1; background: #f1f5f9; font-size: 0.75rem;"
+                placeholder="Chọn file SRT nguồn từ hệ thống...">
+            <button type="button" class="btn-folder-select" id="btn-translate-select-source" title="Chọn nguồn từ hệ thống">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2 3h10a2 2 0 0 1 2 2z"></path>
+                </svg>
+            </button>
+        </div>
+        
+        <!-- FOLDER SCAN LIST -->
+        <div id="translate-folder-info" style="display: none; margin-top: 8px;">
+            <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">
+                Tổng số file SRT hợp lệ: <span id="translate-folder-count" style="color: var(--primary);">0</span>
+            </div>
+            <div class="translate-file-list" id="translate-file-list"></div>
+        </div>
+    </div>
+
+    <div class="panel-header" style="margin-top: 20px; border-top: 1px solid var(--panel-border); padding-top: 15px; margin-bottom: 15px;">
+        <span>2. Cấu hình dịch</span>
+    </div>
+
+    <!-- CONFIG SELECTORS -->
+    <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-top: 5px;">
+        <div class="form-group" id="container-translate-language" style="flex: 1; min-width: 140px; margin-bottom: 0;">
+            <label for="translate-language" style="font-size: 0.7rem; margin-bottom: 4px;">Ngôn ngữ đích</label>
+            <select id="translate-language" style="padding: 6px 8px; font-size: 0.75rem; width: 100%;">
+                <option value="vi" selected>Tiếng Việt</option>
+                <option value="en">Tiếng Anh</option>
+                <option value="zh">Tiếng Trung</option>
+                <option value="ja">Tiếng Nhật</option>
+                <option value="ko">Tiếng Hàn</option>
+                <option value="es">Tiếng Tây Ban Nha</option>
+                <option value="fr">Tiếng Pháp</option>
+                <option value="de">Tiếng Đức</option>
+                <option value="th">Tiếng Thái</option>
+                <option value="id">Tiếng Indonesia</option>
+            </select>
+        </div>
+        
+        <div class="form-group" id="container-translate-profile" style="flex: 1; min-width: 160px; margin-bottom: 0;">
+            <label for="translate-profile" style="font-size: 0.7rem; margin-bottom: 4px;">Cấu hình dịch</label>
+            <select id="translate-profile" style="padding: 6px 8px; font-size: 0.75rem; width: 100%;">
+                <!-- Dynamic options -->
+            </select>
+        </div>
+        
+        <div class="form-group" id="container-translate-concurrency" style="flex: 0 0 80px; margin-bottom: 0;">
+            <label for="translate-concurrency" style="font-size: 0.7rem; margin-bottom: 4px;">Song song</label>
+            <select id="translate-concurrency" style="padding: 6px 8px; font-size: 0.75rem; width: 100%;">
+                <option value="1">1</option>
+                <option value="2" selected>2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+                <option value="9">9</option>
+                <option value="10">10</option>
+            </select>
+        </div>
+    </div>
+
+    <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button type="button" class="btn btn-solid-blue" id="btn-translate-start" disabled style="flex: 1; padding: 10px 16px; font-weight: 700; font-size: 0.82rem;">Tạo bản dịch</button>
+    </div>
+</div>
+
+<!-- RIGHT PANEL: TRANSLATION QUEUE -->
+<div class="panel" style="display: flex; flex-direction: column; min-height: 550px;" id="translate-queue-panel">
+    <div class="panel-header">
+        <span>3. Hàng đợi dịch thuật</span>
+    </div>
+
+    <div id="translate-queue-container">
+        <div class="shared-queue-empty-state" style="display: block; padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 0.8rem;">
+            Chưa có hàng đợi dịch phụ đề nào hoạt động. Hãy chọn file SRT hoặc thư mục và nhấn "Tạo bản dịch".
+        </div>
+    </div>
+</div>
+
+<!-- TRANSLATE COMPARISON MODAL -->
+<div id="translate-editor-modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center;">
+    <div style="background-color: #ffffff; padding: 20px; border: 1px solid var(--panel-border); border-radius: var(--border-radius); width: 95%; max-width: 1050px; box-shadow: var(--shadow-lg); display: flex; flex-direction: column; max-height: 85vh; overflow: hidden;">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--panel-border); padding-bottom: 12px; margin-bottom: 15px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700;" id="translate-modal-title">Đối chiếu bản dịch</h3>
+                <button type="button" class="btn-folder-select" id="btn-translate-modal-open-location" title="Mở vị trí file đã dịch" disabled style="padding: 5px 8px; justify-content: center; align-items: center; height: 30px; width: 34px; margin-left: 0; display: inline-flex;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                </button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span id="translate-modal-status" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">Trạng thái: Chờ</span>
+                <button type="button" class="btn-close-x" id="btn-translate-modal-header-close" title="Đóng" aria-label="Đóng" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background-color 0.2s ease;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- TRANSLATE METADATA STRIP -->
+        <div id="translate-modal-metadata" style="background: #f8fafc; border: 1px solid var(--panel-border); border-radius: var(--border-radius); padding: 8px 12px; margin-bottom: 10px; font-size: 0.75rem; display: flex; flex-wrap: wrap; gap: 16px; color: var(--text-color);">
+            <div><strong>Thời gian chạy:</strong> <span id="trans-meta-elapsed">—</span></div>
+            <div><strong>Ngôn ngữ nguồn:</strong> <span id="trans-meta-source">—</span></div>
+            <div><strong>Ngôn ngữ đích:</strong> <span id="trans-meta-target">—</span></div>
+            <div><strong>Tổng số dòng:</strong> <span id="trans-meta-total">—</span></div>
+        </div>
+
+        <div style="flex: 1; border: 1px solid var(--panel-border); border-radius: var(--border-radius); overflow-y: auto; min-height: 0; position: relative; background: #ffffff;">
+            <table class="translate-modal-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.78rem;">
+                <thead style="background: #f1f5f9; position: sticky; top: 0; z-index: 1; border-bottom: 1px solid var(--panel-border);">
+                    <tr>
+                        <th style="padding: 8px; width: 140px;">Mốc thời gian</th>
+                        <th style="padding: 8px; width: 45%;">Gốc (Read-only)</th>
+                        <th style="padding: 8px;">Bản dịch (Gemini)</th>
+                    </tr>
+                </thead>
+                <tbody id="translate-modal-body">
+                    <!-- Dynamic segments rows -->
+                </tbody>
+            </table>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--panel-border); padding-top: 15px; margin-top: 15px;">
+            <button type="button" class="btn btn-solid-blue" id="btn-translate-modal-save" style="padding: 8px 16px;">Lưu thay đổi</button>
+            <button type="button" class="btn btn-outline-blue" id="btn-translate-modal-close" style="padding: 8px 16px;">Đóng</button>
+        </div>
+    </div>
+</div>

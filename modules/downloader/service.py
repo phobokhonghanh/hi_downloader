@@ -43,6 +43,58 @@ def patched_download_json(self, url, video_id, *args, **kwargs):
 BilibiliSpaceVideoIE._download_json = patched_download_json
 
 # Monkeypatch BilibiliBaseIE sign wbi to shift pages directly
+
+
+def get_proxy_source_label(config_file: str) -> str:
+    from modules.common.paths import get_app_dir
+    proxy_disabled = False
+    custom_proxy_file = None
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, "r", encoding="utf-8") as f:
+                cfg_data = json.load(f)
+                proxy_disabled = cfg_data.get("proxy_disabled", False)
+                if "proxy_mode" in cfg_data and not cfg_data.get("proxy_disabled"):
+                    if cfg_data.get("proxy_mode") == "none":
+                        proxy_disabled = True
+                custom_proxy_file = cfg_data.get("proxy_file")
+        except Exception:
+            pass
+
+    if proxy_disabled:
+        return "Không dùng proxy"
+
+    # Check custom file validity
+    has_custom = False
+    if custom_proxy_file and os.path.exists(custom_proxy_file) and os.path.isfile(custom_proxy_file):
+        try:
+            with open(custom_proxy_file, "r", encoding="utf-8") as f:
+                lines = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
+                if lines:
+                    has_custom = True
+        except Exception:
+            pass
+
+    if has_custom:
+        return "custom proxy"
+
+    # Check system file validity
+    sys_file = os.path.join(get_app_dir("config"), "proxies.txt")
+    has_system = False
+    if sys_file and os.path.exists(sys_file) and os.path.isfile(sys_file):
+        try:
+            with open(sys_file, "r", encoding="utf-8") as f:
+                lines = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
+                if lines:
+                    has_system = True
+        except Exception:
+            pass
+
+    if has_system:
+        return "system proxy"
+
+    return "Không có proxy khả dụng"
+
 original_sign_wbi = BilibiliBaseIE._sign_wbi
 
 def patched_sign_wbi(self, query, *args, **kwargs):
@@ -144,27 +196,48 @@ class DownloaderService:
         return in_path or in_base_dir or in_exe_dir
 
     def get_all_proxies(self) -> List[Optional[str]]:
-        exe_dir = self.config.get("exe_dir", "")
+        """Resolves the proxy configuration path and returns list of proxy URLs."""
         proxy_user = self.config.get("proxy_user", "")
         proxy_pass = self.config.get("proxy_pass", "")
         
-        config_file = os.path.join(exe_dir, "config.json")
+        from modules.common.paths import get_app_dir
+        config_file = os.path.join(get_app_dir("config"), "config.json")
+        
+        proxy_disabled = False
         custom_proxy_file = None
         if os.path.exists(config_file):
             try:
                 with open(config_file, "r", encoding="utf-8") as f:
                     cfg_data = json.load(f)
+                    proxy_disabled = cfg_data.get("proxy_disabled", False)
+                    # Backward compatibility mapping
+                    if "proxy_mode" in cfg_data and not cfg_data.get("proxy_disabled"):
+                        if cfg_data.get("proxy_mode") == "none":
+                            proxy_disabled = True
                     custom_proxy_file = cfg_data.get("proxy_file")
             except Exception:
                 pass
 
+        if proxy_disabled:
+            return [None]
+
         proxy_file = None
+        has_custom = False
         if custom_proxy_file and os.path.exists(custom_proxy_file) and os.path.isfile(custom_proxy_file):
+            try:
+                with open(custom_proxy_file, "r", encoding="utf-8") as f:
+                    lines = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
+                    if lines:
+                        has_custom = True
+            except Exception:
+                pass
+
+        if has_custom:
             proxy_file = custom_proxy_file
         else:
-            proxy_file = os.path.join(exe_dir, "proxies.txt")
+            proxy_file = os.path.join(get_app_dir("config"), "proxies.txt")
 
-        if not os.path.exists(proxy_file):
+        if not proxy_file or not os.path.exists(proxy_file):
             return [None]
         try:
             with open(proxy_file, "r", encoding="utf-8") as f:
@@ -229,8 +302,12 @@ class DownloaderService:
         
         last_err = None
         
+        from modules.common.paths import get_app_dir
+        config_file = os.path.join(get_app_dir("config"), "config.json")
+        
         for attempt, (browser, proxy) in enumerate(pairs, start=1):
-            proxy_info = f" | Proxy: {proxy.split('@')[-1]}" if proxy else " | Không dùng Proxy"
+            proxy_source = get_proxy_source_label(config_file)
+            proxy_info = f" | Proxy: {proxy.split('@')[-1]} ({proxy_source})" if proxy else f" | {proxy_source}"
             if attempt == 1:
                 self._log_user(f"Lần thử 1/{max_attempts}: Trình duyệt {browser}{proxy_info}")
             else:
@@ -362,7 +439,7 @@ class DownloaderService:
         has_ffmpeg_file = os.path.exists(os.path.join(exe_dir, "ffmpeg.exe")) or os.path.exists(os.path.join(exe_dir, "ffmpeg"))
 
         ydl_opts = {
-            'outtmpl': os.path.join(target_dir, '%(uploader)s/%(title)s.%(ext)s'),
+            'outtmpl': os.path.join(target_dir, '%(uploader)s/%(id)s_%(title)s.%(ext)s'),
             'format': fmt_str,
             'progress_hooks': [hook],
             'ffmpeg_location': exe_dir if has_ffmpeg_file else None,
@@ -395,6 +472,9 @@ class DownloaderService:
         success = False
         last_error_msg = ""
 
+        from modules.common.paths import get_app_dir
+        config_file = os.path.join(get_app_dir("config"), "config.json")
+
         for attempt, (selected_browser, proxy) in enumerate(pairs, start=1):
             if self.task_store and self.task_store.is_canceled(task_id):
                 break
@@ -409,7 +489,8 @@ class DownloaderService:
                     if 'proxy' in ydl_opts:
                         del ydl_opts['proxy']
 
-                proxy_info = f" | Proxy: {proxy.split('@')[-1]}" if proxy else " | Không dùng Proxy"
+                proxy_source = get_proxy_source_label(config_file)
+                proxy_info = f" | Proxy: {proxy.split('@')[-1]} ({proxy_source})" if proxy else f" | {proxy_source}"
                 if attempt == 1:
                     logging.info(f"[TASK {task_id}] Loading cookies: {selected_browser}")
                 else:

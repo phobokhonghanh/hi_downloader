@@ -158,7 +158,7 @@ class TestDownloaderService(unittest.TestCase):
         
         mock_exists.side_effect = exists_side_effect
         
-        config_json_content = '{"proxy_file": "/custom/path/proxies.txt"}'
+        config_json_content = '{"proxy_mode": "custom", "proxy_file": "/custom/path/proxies.txt"}'
         proxy_file_content = "1.2.3.4:8080:user1:pass1\n#comment\n5.6.7.8:9090\n"
         
         from unittest.mock import mock_open
@@ -202,6 +202,35 @@ class TestDownloaderService(unittest.TestCase):
         proxies = self.service.get_all_proxies()
         self.assertEqual(len(proxies), 1)
         self.assertEqual(proxies[0], "http://11.22.33.44:5555")
+
+    @patch("yt_dlp.YoutubeDL")
+    def test_downloader_output_template_format(self, mock_ytdl):
+        """Verify that downloader uses uploader folder prefix and prepends Bilibili/Video ID to filename."""
+        mock_instance = MagicMock()
+        mock_ytdl.return_value.__enter__.return_value = mock_instance
+
+        req = DownloadRequestData(url="https://www.bilibili.com/video/BV123", quality="1080")
+        res = self.service.start_download(req)
+        
+        # Wait for worker task thread execution
+        for _ in range(50):
+            t = self.store.get_task(res.task_id)
+            if t and t["status"] in ("completed", "failed"):
+                break
+            time.sleep(0.01)
+
+        # Assert yt_dlp was initialized with correct outtmpl option
+        mock_ytdl.assert_called()
+        init_args, init_kwargs = mock_ytdl.call_args
+        ydl_opts = init_args[0] if init_args else init_kwargs.get("params", {})
+        
+        outtmpl = ydl_opts.get("outtmpl", "")
+        self.assertTrue(outtmpl, "outtmpl is missing or empty")
+        
+        # Ensure it contains both uploader directory prefix and ID prefix format
+        self.assertIn("%(uploader)s", outtmpl)
+        self.assertIn("%(id)s_%(title)s.%(ext)s", outtmpl)
+        self.assertNotIn("%(uploader)s/%(title)s.%(ext)s", outtmpl, "Found legacy title-only output template")
 
 
 if __name__ == "__main__":

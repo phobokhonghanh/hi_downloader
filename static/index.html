@@ -32,344 +32,132 @@
                     </svg>
                     Phụ đề
                 </button>
+                <button type="button" class="sidebar-nav-button" id="btn-mode-translate">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 10px; min-width: 16px;">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    Dịch phụ đề
+                </button>
             </nav>
+            <div class="sidebar-footer" style="margin-top: auto; padding: 15px; border-top: 1px solid var(--panel-border);">
+                <button type="button" class="btn-settings-gear" id="btn-open-settings" title="Cài đặt" aria-label="Cài đặt">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 10px; min-width: 16px;">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                    Cài đặt
+                </button>
+            </div>
         </aside>
 
         <!-- MAIN CONTENT AREA -->
         <main class="main-content">
 
-            <!-- APP GRID CONTENT -->
-            <div class="app-grid" id="downloader-view">
-                <div class="download-settings-strip">
-                    <!-- THƯ MỤC LƯU -->
-                    <div class="header-dir-group" style="display: flex; align-items: flex-start; gap: 8px;">
-                        <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); white-space: nowrap; margin-top: 7px; margin-bottom: 0;">Thư mục lưu:</label>
-                        <div class="input-group" style="display: flex; align-items: center; gap: 4px;">
-                            <input type="text" id="custom-output-dir" readonly
-                                style="width: 220px; font-size: 0.72rem; padding: 6px 10px; background: #f1f5f9;"
-                                placeholder="Chọn thư mục..." title="">
-                            <button type="button" class="btn-folder-select" id="btn-select-dir" title="Chọn thư mục từ hệ thống"
-                                style="padding: 5px 8px; margin-left: 0; display: flex; align-items: center; justify-content: center; height: 28px; width: 34px;">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z">
-                                    </path>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                    <!-- PROXY -->
-                    <div class="header-proxy-group" style="display: flex; align-items: flex-start; gap: 8px;">
-                        <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); white-space: nowrap; margin-top: 7px; margin-bottom: 0;">Proxy:</label>
-                        <div style="display: flex; flex-direction: column; align-items: flex-start;">
-                            <div class="input-group" style="display: flex; align-items: center; gap: 4px;">
-                                <input type="text" id="custom-proxy-file" readonly
-                                    style="width: 220px; font-size: 0.72rem; padding: 6px 10px; background: #f1f5f9;"
-                                    placeholder="Dùng proxy system mặc định" title="">
-                                <button type="button" class="btn-folder-select" id="btn-select-proxy" title="Chọn file proxy từ hệ thống"
-                                    style="padding: 5px 8px; margin-left: 0; display: flex; align-items: center; justify-content: center; height: 28px; width: 34px;">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                        <polyline points="14 2 14 8 20 8"></polyline>
-                                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                                        <polyline points="10 9 9 9 8 9"></polyline>
-                                    </svg>
-                                </button>
-                                <button type="button" class="btn-folder-select" id="btn-clear-proxy" title="Xóa proxy cá nhân"
-                                    style="padding: 5px 8px; margin-left: 0; display: flex; align-items: center; justify-content: center; height: 28px; width: 34px; color: #ef4444;">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                                    </svg>
-                                </button>
-                            </div>
-                            <span style="font-size: 0.56rem; color: var(--text-muted); margin-top: 3px; font-weight: 500; text-align: left; max-width: 250px; line-height: 1.25;">
-                                Định dạng: ip:port:username:password
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-            <!-- LEFT PANEL: DOWNLOAD SETTINGS -->
-            <div class="panel">
-                <div class="panel-header">
-                    <span>1. Cấu hình lượt tải</span>
-                </div>
-
-                <div class="form-group">
-                    <label for="url">Đường dẫn URL Bilibili</label>
-                    <input type="text" id="url" required
-                        placeholder="Dán link video (BV...) hoặc link trang cá nhân (Space)...">
-                </div>
-
-                <button type="button" class="btn btn-outline-blue" id="btn-analyze" style="margin-bottom: 20px;">Tìm
-                    kiếm</button>
-
-                <!-- LỊCH SỬ TÌM KIẾM -->
-                <div class="form-group" id="history-section" style="margin-bottom: 20px;">
-                    <div class="panel-header" style="font-size: 0.72rem; border-bottom: none; padding-bottom: 5px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <span>Lịch sử tìm kiếm</span>
-                        <button type="button" class="btn-small-clear" id="btn-clear-history" style="color: #ef4444; border: none; background: none; font-size: 0.65rem; cursor: pointer; text-transform: lowercase; font-weight: 700;">xóa hết</button>
-                    </div>
-                    <div id="history-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; padding-right: 4px;"></div>
-                </div>
-
-                <!-- KẾT QUẢ PHÂN TÍCH (Chỉ hiện khi phân tích thành công) -->
-                <div class="analysis-box" id="analysis-box">
-                    <div class="panel-header" id="analysis-title"
-                        style="margin-bottom: 10px; color: var(--primary); font-size: 0.78rem; border-bottom: none; padding-bottom: 0;">
-                        Thông tin phân tích
-                    </div>
-                    <div class="analysis-summary" id="analysis-summary"></div>
-
-                    <!-- Cho Video Đơn lẻ -->
-                    <div class="form-group" id="quality-selector-group" style="display: none;">
-                        <label for="quality-select">Chọn chất lượng video muốn tải</label>
-                        <select id="quality-select"></select>
-                    </div>
-
-                    <!-- Cho Space/Profile -->
-                    <div id="space-pages-group" style="display: none;">
-                        <div class="flex-row">
-                            <div class="form-group">
-                                <label for="page-start">Từ trang</label>
-                                <input type="number" id="page-start" min="1" value="1">
-                            </div>
-                            <div class="form-group">
-                                <label for="page-end">Đến trang</label>
-                                <input type="number" id="page-end" min="1" value="1">
-                            </div>
-                        </div>
-                        <div class="form-group" style="margin-top: 8px;">
-                            <label for="max-videos">Số lượng video muốn tải (tùy chọn)</label>
-                            <input type="number" id="max-videos" min="1"
-                                placeholder="Ví dụ: 10 (để trống để tải hết trang)">
-                        </div>
-                    </div>
-
-                    <button type="button" class="btn btn-solid-blue" id="btn-download">Tải xuống</button>
-                </div>
+            <!-- STARTUP LOADING / ERROR OVERLAYS -->
+            <div id="startup-loading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 400px; color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">
+                <div class="loading-spinner" style="border: 3px solid #cbd5e1; border-top: 3px solid var(--primary); border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; margin-bottom: 12px;"></div>
+                <span>Đang tải các thành phần giao diện...</span>
             </div>
 
-            <!-- RIGHT PANEL: DOWNLOAD QUEUE -->
-            <div class="panel">
-                <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>2. Hàng chờ tải (Queue)</span>
-                    <button type="button" class="btn-small-folder" id="btn-clear-queue"
-                        style="color: #64748b; border-color: #cbd5e1; text-transform: lowercase;">xóa hàng chờ</button>
-                </div>
-                <div class="queue-stats-bar"
-                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 0.72rem; font-weight: 700; border-bottom: 1px dashed var(--panel-border); padding-bottom: 8px;">
-                    <div style="display: flex; gap: 12px;">
-                        <span style="color: #6b7280;">waiting: <span id="stat-waiting"
-                                style="color: #6b7280;">0</span></span>
-                        <span style="color: #ca8a04;">running: <span id="stat-running"
-                                style="color: #ca8a04;">0</span></span>
-                        <span style="color: #16a34a;">done: <span id="stat-done" style="color: #16a34a;">0</span></span>
-                        <span style="color: #dc2626;">error: <span id="stat-error"
-                                style="color: #dc2626;">0</span></span>
-                    </div>
-                    <span id="queue-total-time" style="color: #000000;">0s</span>
-                </div>
-                <div class="task-list" id="tasks-container">
-                    <div style="text-align: center; color: var(--text-muted); font-size: 0.78rem; padding-top: 40px;"
-                        id="queue-empty-msg">
-                        Hàng chờ trống. Vui lòng thêm video để bắt đầu.
-                    </div>
-                </div>
-            </div>
-
-        </div>
-
-        <!-- SUBTITLE GRID CONTENT -->
-        <div class="app-grid" id="subtitle-view" style="display: none;">
-
-            <!-- LEFT PANEL: SUBTITLE CONFIG -->
-            <div class="panel">
-                <div class="panel-header">
-                    <span>1. Cấu hình phụ đề</span>
-                </div>
-
-                <div class="form-group">
-                    <label for="subtitle-video-path">Đường dẫn tệp video</label>
-                    <div style="display: flex; align-items: center;">
-                        <input type="text" id="subtitle-video-path" readonly
-                            style="flex: 1; background: #f1f5f9;"
-                            placeholder="Chọn file video từ hệ thống...">
-                        <button type="button" class="btn-folder-select" id="btn-subtitle-select-video" title="Chọn file video từ hệ thống">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2 3h10a2 2 0 0 1 2 2z"></path>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="subtitle-method">Phương thức tạo phụ đề</label>
-                    <select id="subtitle-method">
-                        <option value="whisper" selected>Whisper - nhận diện giọng nói</option>
-                        <option value="ocr" disabled>OCR - đọc chữ trên video (sắp có)</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="subtitle-model">Mô hình Whisper</label>
-                    <select id="subtitle-model">
-                        <option value="tiny">tiny</option>
-                        <option value="base" selected>base</option>
-                        <option value="small">small</option>
-                        <option value="medium">medium</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="subtitle-language">Ngôn ngữ</label>
-                    <select id="subtitle-language">
-                        <option value="" selected>Tự động nhận dạng</option>
-                        <option value="vi">Tiếng Việt</option>
-                        <option value="en">Tiếng Anh</option>
-                        <option value="zh">Tiếng Trung</option>
-                        <option value="ja">Tiếng Nhật</option>
-                        <option value="ko">Tiếng Hàn</option>
-                        <option value="es">Tiếng Tây Ban Nha</option>
-                        <option value="fr">Tiếng Pháp</option>
-                        <option value="de">Tiếng Đức</option>
-                    </select>
-                </div>
-
-                <div style="display: flex; gap: 10px; margin-top: 20px; margin-bottom: 20px;">
-                    <button type="button" class="btn btn-solid-blue" id="btn-subtitle-generate" style="flex: 1;">Tạo phụ đề bằng Whisper</button>
-                </div>
-
-                <details style="margin-top: 20px; border: 1px solid var(--panel-border); border-radius: var(--border-radius); padding: 12px 14px; background-color: #fafafa;">
-                    <summary style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); cursor: pointer; outline: none; user-select: none;">
-                        Nạp file phụ đề SRT có sẵn...
-                    </summary>
-                    <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
-                        <span style="font-size: 0.65rem; color: var(--text-muted); line-height: 1.35; margin-bottom: 5px;">
-                            * Chỉ dành cho trường hợp bạn đã có sẵn tệp phụ đề .srt và muốn nạp vào bảng để xem, biên tập hoặc xuất ra. Không bắt buộc khi dùng Whisper tạo phụ đề tự động.
-                        </span>
-
-                        <!-- File selection (Primary) -->
-                        <div style="display: flex; align-items: center; gap: 4px;">
-                            <input type="text" id="subtitle-srt-file-display" readonly
-                                style="flex: 1; font-size: 0.72rem; padding: 6px 10px; background: #f1f5f9; border: 1px solid var(--input-border); border-radius: var(--border-radius);"
-                                placeholder="Chọn file phụ đề SRT...">
-                            <button type="button" class="btn-folder-select" id="btn-subtitle-import-srt-file" title="Chọn file SRT"
-                                style="padding: 5px 8px; display: flex; align-items: center; justify-content: center; height: 28px; width: 34px; border: 1px solid var(--input-border); border-radius: var(--border-radius); cursor: pointer; background: var(--bg-card);">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2 3h10a2 2 0 0 1 2 2z"></path>
-                                </svg>
-                            </button>
-                        </div>
-
-                        <!-- Manual Paste (Secondary) -->
-                        <details style="margin-top: 10px; border: 1px dashed var(--panel-border); border-radius: var(--border-radius); padding: 8px 10px; background-color: #ffffff;">
-                            <summary style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted); cursor: pointer; outline: none; user-select: none;">
-                                Hoặc dán nội dung SRT thủ công
-                            </summary>
-                            <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
-                                <textarea id="subtitle-srt-input" rows="5" placeholder="Dán nội dung tệp SRT vào đây..." style="width: 100%; font-size: 0.75rem; padding: 10px; border: 1px solid var(--input-border); border-radius: var(--border-radius); background-color: var(--input-bg); resize: vertical;"></textarea>
-                                <button type="button" class="btn btn-outline-blue" id="btn-subtitle-parse-srt" style="width: 100%; margin-top: 5px;">Nạp SRT vào bảng</button>
-                            </div>
-                        </details>
-                    </div>
-                </details>
-            </div>
-
-            <!-- RIGHT PANEL: SUBTITLE EDITOR -->
-            <div class="panel" style="display: flex; flex-direction: column; min-height: 550px;">
-                <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>2. Xem & Biên tập phụ đề</span>
-                    <span id="subtitle-status" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">Trạng thái: Chờ</span>
-                </div>
-
-                <!-- Subtitle control buttons -->
-                <div class="subtitle-toolbar">
-                    <div class="subtitle-toolbar-group">
-                        <div class="tooltip-container">
-                            <span class="help-icon" tabindex="0" aria-label="Hướng dẫn gộp dòng" data-tooltip="Gộp = chọn từ 2 dòng phụ đề liên tiếp để gộp; nếu khoảng cách lớn UI sẽ hỏi xác nhận.">?</span>
-                            <button type="button" class="btn-text-only" id="btn-subtitle-merge" disabled style="margin-left: 4px;">Gộp</button>
-                        </div>
-                        <span class="subtitle-separator">|</span>
-                        <div class="tooltip-container">
-                            <button type="button" class="btn-text-only" id="btn-subtitle-split" disabled style="margin-right: 4px;">Tách</button>
-                            <span class="help-icon" tabindex="0" aria-label="Hướng dẫn tách dòng" data-tooltip="Tách = chọn đúng 1 dòng, nhập thời điểm tách và nội dung 2 phần.">?</span>
-                        </div>
-                    </div>
-                    <div class="subtitle-toolbar-export" style="display: flex; align-items: center; gap: 8px;">
-                        <button type="button" class="btn btn-solid-blue btn-sm" id="btn-subtitle-export" disabled>Xuất file SRT</button>
-                        <button type="button" class="btn-folder-select" id="btn-subtitle-open-srt-location" title="Mở vị trí file SRT sau khi xuất" disabled style="padding: 5px 8px; justify-content: center; align-items: center; height: 30px; width: 34px; margin-left: 0;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                <polyline points="15 3 21 3 21 9"></polyline>
-                                <line x1="10" y1="14" x2="21" y2="3"></line>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Subtitle table container -->
-                <div style="flex: 1; border: 1px solid var(--panel-border); border-radius: var(--border-radius); overflow: auto; max-height: 400px; position: relative; background: #fafafa;">
-                    <table class="subtitle-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.78rem;">
-                        <thead style="background: #f1f5f9; position: sticky; top: 0; z-index: 1; border-bottom: 1px solid var(--panel-border);">
-                            <tr>
-                                <th style="padding: 8px; width: 40px; text-align: center;"><input type="checkbox" id="subtitle-select-all" style="cursor: pointer;"></th>
-                                <th style="padding: 8px; width: 50px;">#</th>
-                                <th style="padding: 8px; width: 100px;">Bắt đầu</th>
-                                <th style="padding: 8px; width: 100px;">Kết thúc</th>
-                                <th style="padding: 8px; width: 80px;">Khoảng cách</th>
-                                <th style="padding: 8px;">Nội dung</th>
-                                <th style="padding: 8px; width: 80px; text-align: center;">Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody id="subtitle-table-body">
-                            <!-- Rows dynamically populated -->
-                        </tbody>
-                    </table>
-
-                    <!-- Empty state -->
-                    <div id="subtitle-empty-state" style="text-align: center; color: var(--text-muted); font-size: 0.78rem; padding: 60px 20px;">
-                        Chưa có phụ đề. Hãy chọn video và tạo phụ đề bằng Whisper (hoặc nạp file SRT từ bên ngoài).
-                    </div>
-                </div>
-            </div>
-
-        </div>
-
-        <!-- BOTTOM PANEL: LIVE CONSOLE LOG -->
-        <div class="terminal-panel" style="position: relative;">
-            <div class="terminal-header" style="display: flex; justify-content: space-between; align-items: center;">
-                <span>Nhật ký hệ thống thời gian thực</span>
-                <div style="display: flex; gap: 8px;">
-                    <button type="button" class="btn-small-folder" id="btn-clear-logs"
-                        style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3); text-transform: lowercase;">xóa
-                        log</button>
-                    <button type="button" class="btn-small-folder" id="btn-copy-logs"
-                        style="color: #475569; border-color: #cbd5e1; text-transform: lowercase;">sao chép log</button>
-                </div>
-            </div>
-            <div class="terminal-body" id="terminal-body">
-                <div class="terminal-line">[LOG] Hệ thống đang sẵn sàng...</div>
-            </div>
-            <button type="button" id="btn-scroll-bottom" class="btn-scroll-bottom" title="Cuộn xuống log mới nhất"
-                style="display: none;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="6 9 12 15 18 9"></polyline>
+            <div id="startup-error" style="display: none; flex-direction: column; align-items: center; justify-content: center; min-height: 400px; padding: 20px; text-align: center;">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;">
+                    <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"></polygon>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
                 </svg>
-            </button>
+                <h3 style="color: #ef4444; margin-top: 0; margin-bottom: 8px;">Lỗi tải giao diện</h3>
+                <p id="startup-error-message" style="color: var(--text-muted); font-size: 0.78rem; max-width: 400px; margin-bottom: 20px; line-height: 1.5;"></p>
+                <button type="button" class="btn btn-solid-blue" id="btn-startup-retry" style="padding: 8px 16px;">Tải lại trang</button>
+            </div>
+
+            <!-- APP GRID CONTENT -->
+            <div class="app-grid" id="downloader-view" style="display: none;"></div>
+
+            <!-- SUBTITLE GRID CONTENT -->
+            <div class="app-grid" id="subtitle-view" style="display: none;"></div>
+
+            <!-- TRANSLATE GRID CONTENT -->
+            <div class="app-grid" id="translate-view" style="display: none;"></div>
+
+            <!-- BOTTOM PANEL: LIVE CONSOLE LOG (SHARED SYSTEM LOG FOOTER) -->
+            <div class="terminal-panel" id="shared-terminal-panel" style="position: relative; margin-top: 15px;">
+                <div class="terminal-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Nhật ký hệ thống thời gian thực</span>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" class="btn-small-folder" id="btn-clear-logs"
+                            style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3); text-transform: lowercase;">xóa
+                            log</button>
+                        <button type="button" class="btn-small-folder" id="btn-copy-logs"
+                            style="color: #475569; border-color: #cbd5e1; text-transform: lowercase;">sao chép log</button>
+                    </div>
+                </div>
+                <div class="terminal-body" id="terminal-body">
+                    <div class="terminal-line">[LOG] Hệ thống đang sẵn sàng...</div>
+                </div>
+                <button type="button" id="btn-scroll-bottom" class="btn-scroll-bottom" title="Cuộn xuống log mới nhất"
+                    style="display: none;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </button>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- GLOBAL SETTINGS MODAL -->
+    <div id="global-settings-modal" style="display: none; position: fixed; z-index: 1100; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center;">
+        <div style="background-color: #ffffff; padding: 0; border: 1px solid var(--panel-border); border-radius: var(--border-radius); width: 90%; max-width: 800px; box-shadow: var(--shadow-lg); display: flex; height: 500px; overflow: hidden;">
+            <!-- Left Navigation Pane -->
+            <div style="width: 200px; border-right: 1px solid var(--panel-border); background: #f8fafc; padding: 20px 10px; display: flex; flex-direction: column; gap: 8px;">
+                <h3 style="margin: 0 0 15px 10px; font-size: 0.95rem; font-weight: 700; color: var(--text-color);">Cài đặt</h3>
+                <button type="button" class="settings-nav-item active" data-tab="api-keys" style="text-align: left; background: none; border: none; padding: 8px 12px; font-size: 0.8rem; cursor: pointer; font-weight: 600; border-radius: var(--border-radius); width: 100%; color: var(--primary);">
+                    API key
+                </button>
+            </div>
+            <!-- Right Pane (Content) -->
+            <div id="settings-right-pane" style="flex: 1; display: flex; flex-direction: column; padding: 20px; background: #ffffff;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--panel-border); padding-bottom: 12px; margin-bottom: 15px;">
+                    <h4 style="margin: 0; font-size: 1rem; font-weight: 700;" id="settings-pane-title">Cấu hình API key</h4>
+                    <button type="button" class="btn-close-x" id="btn-close-settings-modal" title="Đóng" aria-label="Đóng" style="background: none; border: none; padding: 6px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background-color 0.2s ease;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <!-- Right Pane body -->
+                <div id="settings-pane-body" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 20px;">
+                    <!-- Dynamic provider list will be injected here -->
+                </div>
+            </div>
         </div>
+    </div>
 
-    </main>
-</div>
+    <!-- QUICK PROVIDER KEY ENTRY MODAL -->
+    <div id="quick-key-modal" style="display: none; position: fixed; z-index: 1200; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center;">
+        <div style="background-color: #ffffff; padding: 20px; border: 1px solid var(--panel-border); border-radius: var(--border-radius); width: 90%; max-width: 450px; box-shadow: var(--shadow-lg); display: flex; flex-direction: column;">
+            <h3 style="margin: 0 0 15px 0; font-size: 1rem; font-weight: 700;" id="quick-key-title">Cấu hình API key</h3>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="quick-key-input" id="quick-key-label" style="font-size: 0.75rem; margin-bottom: 5px; display: block;">API key</label>
+                <input type="password" id="quick-key-input" placeholder="Nhập khoá API..." style="width: 100%; font-size: 0.78rem; padding: 8px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px;">
+                    <label style="display: flex; align-items: center; gap: 4px; font-weight: normal; cursor: pointer; font-size: 0.72rem; margin-bottom: 0;">
+                        <input type="checkbox" id="quick-key-persist" style="cursor: pointer;">
+                        Ghi nhớ lâu dài (OS Secret Service)
+                    </label>
+                </div>
+            </div>
 
-    <script src="/static/js/app.js?v=1"></script>
+            <div style="display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid var(--panel-border); padding-top: 15px; margin-top: 10px;">
+                <button type="button" class="btn btn-outline-blue" id="btn-quick-key-cancel" style="padding: 6px 12px; font-size: 0.75rem;">Hủy</button>
+                <button type="button" class="btn btn-solid-blue" id="btn-quick-key-save" style="padding: 6px 12px; font-size: 0.75rem;">Lưu khoá</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/static/js/bootstrap.js?v=2"></script>
 </body>
-
 </html>

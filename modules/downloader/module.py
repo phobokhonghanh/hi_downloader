@@ -38,7 +38,8 @@ class DownloaderModule(BaseModule):
                 }
             },
             supports_standalone=True,
-            supports_workflow=True
+            supports_workflow=True,
+            requires_output_dir=True
         )
 
     def validate_params(self, params: Dict[str, Any]) -> bool:
