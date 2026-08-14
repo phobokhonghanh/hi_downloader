@@ -17,7 +17,7 @@ class DownloaderModule(BaseModule):
         return ModuleMetadata(
             module_id=self.module_id,
             name="Downloader Module",
-            description="Bilibili Downloader module for analyzing URLs and downloading video/space media files.",
+            description="Hi Downloader module for analyzing URLs and downloading video/space media files.",
             input_schema={
                 "type": "object",
                 "properties": {

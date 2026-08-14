@@ -25,7 +25,7 @@ load_dotenv()
 
 APP_HOST = os.getenv("APP_HOST", "127.0.0.1")
 APP_PORT = int(os.getenv("APP_PORT", "8000"))
-APP_TITLE = os.getenv("APP_TITLE", "BILIBILI 4K DOWNLOADER DESKTOP APP")
+APP_TITLE = os.getenv("APP_TITLE", "Hi Downloader")
 
 def start_server():
     uvicorn.run("app:app", host=APP_HOST, port=APP_PORT, log_level="warning")

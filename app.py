@@ -27,14 +27,14 @@ from workflow.schemas import WorkflowConfig, StepConfig
 # Load environment variables
 load_dotenv()
 
-APP_TITLE = os.getenv("APP_TITLE", "Bilibili Advanced Downloader")
+APP_TITLE = os.getenv("APP_TITLE", "Hi Downloader")
 app = FastAPI(title=APP_TITLE)
 
 # Domain configurations and file config
 from modules.downloader.service import BILIBILI_API_DOMAIN, BILIBILI_VIDEO_BASE_URL
 PROXY_FILE_NAME = 'proxies.txt'
 BILIBILI_SPACE_DOMAIN = "space.bilibili.com"
-DIALOG_TITLE = os.getenv("DIALOG_TITLE", "Chon thu muc luu video Bilibili")
+DIALOG_TITLE = os.getenv("DIALOG_TITLE", "Chon thu muc luu video")
 
 if getattr(sys, 'frozen', False):
     base_path = sys._MEIPASS
