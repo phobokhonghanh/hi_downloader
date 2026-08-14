@@ -50,22 +50,51 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install pyinstaller
-          pip install -r requirements.txt
+          python -m pip install --disable-pip-version-check --no-cache-dir --upgrade pip setuptools wheel
+          python -m pip install --disable-pip-version-check --no-cache-dir pyinstaller -r requirements.txt
 
       - name: Copy FFmpeg & FFprobe (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Copy-Item (Get-Command ffmpeg).Source .\ffmpeg.exe
-          Copy-Item (Get-Command ffprobe).Source .\ffprobe.exe
+          $ffmpeg = Get-Command ffmpeg -ErrorAction SilentlyContinue
+          $ffprobe = Get-Command ffprobe -ErrorAction SilentlyContinue
+          if ($ffmpeg -and $ffprobe) {
+            Copy-Item $ffmpeg.Source .\ffmpeg.exe
+            Copy-Item $ffprobe.Source .\ffprobe.exe
+            Write-Host "Copied FFmpeg and FFprobe from system PATH."
+          } else {
+            Write-Host "FFmpeg not found in PATH. Downloading..."
+            Invoke-WebRequest -Uri "https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffmpeg-6.1-win-64.zip" -OutFile "ffmpeg.zip"
+            Invoke-WebRequest -Uri "https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffprobe-6.1-win-64.zip" -OutFile "ffprobe.zip"
+            Expand-Archive -Path "ffmpeg.zip" -DestinationPath "." -Force
+            Expand-Archive -Path "ffprobe.zip" -DestinationPath "." -Force
+            Remove-Item "ffmpeg.zip", "ffprobe.zip"
+          }
 
       - name: Copy FFmpeg & FFprobe (macOS)
         if: runner.os != 'Windows'
         run: |
-          cp $(which ffmpeg) ./ffmpeg
-          cp $(which ffprobe) ./ffprobe
+          if command -v ffmpeg >/dev/null 2>&1 && command -v ffprobe >/dev/null 2>&1; then
+            cp $(which ffmpeg) ./ffmpeg
+            cp $(which ffprobe) ./ffprobe
+            echo "Copied FFmpeg and FFprobe from system PATH."
+          else
+            echo "FFmpeg not found in PATH. Downloading..."
+            if [ "$(uname)" = "Darwin" ]; then
+              URL_FFMPEG="https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffmpeg-6.1-macos-64.zip"
+              URL_FFPROBE="https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffprobe-6.1-macos-64.zip"
+            else
+              URL_FFMPEG="https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffmpeg-6.1-linux-64.zip"
+              URL_FFPROBE="https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffprobe-6.1-linux-64.zip"
+            fi
+            curl -L -o ffmpeg.zip "$URL_FFMPEG"
+            curl -L -o ffprobe.zip "$URL_FFPROBE"
+            unzip -o ffmpeg.zip
+            unzip -o ffprobe.zip
+            rm -f ffmpeg.zip ffprobe.zip
+            chmod +x ffmpeg ffprobe
+          fi
 
       - name: Package with PyInstaller (Windows)
         if: runner.os == 'Windows'
