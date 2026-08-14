@@ -28,7 +28,8 @@ APP_PORT = int(os.getenv("APP_PORT", "8000"))
 APP_TITLE = os.getenv("APP_TITLE", "Hi Downloader")
 
 def start_server():
-    uvicorn.run("app:app", host=APP_HOST, port=APP_PORT, log_level="warning")
+    from app import app
+    uvicorn.run(app, host=APP_HOST, port=APP_PORT, log_level="warning")
 
 def open_browser():
     time.sleep(1.5)
