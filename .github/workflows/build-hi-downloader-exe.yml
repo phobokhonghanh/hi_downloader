@@ -103,6 +103,7 @@ jobs:
           pyinstaller `
             --noconfirm `
             --onefile `
+            --additional-hooks-dir "pyinstaller_hooks" `
             --name "hi_downloader_${{ env.VERSION }}" `
             --add-data "static;static" `
             --add-binary "ffmpeg.exe;." `
@@ -115,6 +116,7 @@ jobs:
           pyinstaller \
             --noconfirm \
             --onefile \
+            --additional-hooks-dir "pyinstaller_hooks" \
             --name "hi_downloader_macOS_${{ env.VERSION }}" \
             --add-data "static:static" \
             --add-binary "ffmpeg:." \
