@@ -41,17 +41,17 @@ if getattr(sys, 'frozen', False):
 else:
     base_path = os.path.dirname(os.path.abspath(__file__))
 
+EXE_DIR = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+
 # Auto register base_path in PATH for yt-dlp to locate packaged ffmpeg/ffprobe
 if base_path not in os.environ.get("PATH", ""):
     os.environ["PATH"] = base_path + os.pathsep + os.environ.get("PATH", "")
 
 STATIC_DIR = os.path.join(base_path, "static")
-DOWNLOAD_DIR = os.path.abspath(os.getenv("DOWNLOAD_DIR", "./downloads"))
+DOWNLOAD_DIR = os.path.abspath(os.getenv("DOWNLOAD_DIR", os.path.join(EXE_DIR, "downloads")))
 
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 os.makedirs(STATIC_DIR, exist_ok=True)
-
-EXE_DIR = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
 
 from modules.common.paths import get_app_dir
 CONFIG_FILE = os.path.join(get_app_dir("config"), os.getenv("CONFIG_FILE", "config.json"))
