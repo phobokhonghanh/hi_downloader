@@ -57,6 +57,18 @@ from modules.common.paths import get_app_dir
 CONFIG_FILE = os.path.join(get_app_dir("config"), os.getenv("CONFIG_FILE", "config.json"))
 os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
 
+# Ensure standard streams use UTF-8 to prevent UnicodeEncodeError on Windows console
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # Setup Logging
 LOG_FILE = os.path.join(get_app_dir("log"), os.getenv("LOG_FILE", "hi_downloader.log"))
 os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
@@ -1018,19 +1030,20 @@ def run_workflow(req: WorkflowRunRequest):
 def get_gui_env() -> dict:
     env = os.environ.copy()
     
-    if "DISPLAY" not in env or not env["DISPLAY"]:
+    if sys.platform.startswith("linux") and ("DISPLAY" not in env or not env["DISPLAY"]):
         working_disp = None
         for disp in [":0", ":1", ":2"]:
             try:
                 test_env = env.copy()
                 test_env["DISPLAY"] = disp
-                subprocess.check_call(
-                    [sys.executable, "-c", "import tkinter as tk; tk.Tk().destroy()"],
-                    env=test_env,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    timeout=2
-                )
+                if shutil.which("zenity"):
+                    subprocess.check_call(
+                        ["zenity", "--version"],
+                        env=test_env,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        timeout=2
+                    )
                 working_disp = disp
                 break
             except Exception:
@@ -1052,401 +1065,325 @@ def get_gui_env() -> dict:
     return env
 
 
-@app.post("/api/select-directory")
-def select_directory():
+def run_gui_folder_dialog(title: str = "Chon thu muc") -> tuple[str, Optional[str]]:
+    """
+    Open native OS folder selection dialog.
+    Returns tuple: (status, path_or_error)
+      - status: "success", "canceled", or "error"
+    """
     env = get_gui_env()
 
     if sys.platform.startswith("linux"):
         if shutil.which("zenity"):
             try:
-                cmd = ["zenity", "--file-selection", "--directory", f"--title={DIALOG_TITLE}"]
+                cmd = ["zenity", "--file-selection", "--directory", f"--title={title}"]
                 output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
                 path = output.strip()
                 if path:
-                    abs_path = os.path.abspath(path)
-                    save_cached_dir(abs_path)
-                    return {"status": "success", "path": abs_path}
+                    return "success", os.path.abspath(path)
             except subprocess.CalledProcessError as cpe:
                 if cpe.returncode == 1:
                     logging.info("Nguoi dung da huy chon thu muc qua Zenity.")
-                    return {"status": "canceled", "path": None}
+                    return "canceled", None
                 logging.warning(f"Zenity loi hoac thieu DISPLAY: {cpe.stderr.decode('utf-8', errors='ignore')}")
             except Exception as e:
                 logging.warning(f"Zenity that bai: {e}")
 
         if shutil.which("kdialog"):
             try:
-                cmd = ["kdialog", "--getexistingdirectory", ".", "--title", DIALOG_TITLE]
+                cmd = ["kdialog", "--getexistingdirectory", ".", "--title", title]
                 output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
                 path = output.strip()
                 if path:
-                    abs_path = os.path.abspath(path)
-                    save_cached_dir(abs_path)
-                    return {"status": "success", "path": abs_path}
+                    return "success", os.path.abspath(path)
             except subprocess.CalledProcessError as cpe:
                 if cpe.returncode == 1:
                     logging.info("Nguoi dung da huy chon thu muc qua Kdialog.")
-                    return {"status": "canceled", "path": None}
+                    return "canceled", None
                 logging.warning(f"Kdialog loi: {cpe.stderr.decode('utf-8', errors='ignore')}")
             except Exception as e:
                 logging.warning(f"Kdialog that bai: {e}")
 
     if sys.platform == "darwin":
         try:
-            cmd = ["osascript", "-e", f'POSIX path of (choose folder with prompt "{DIALOG_TITLE}")']
+            cmd = ["osascript", "-e", f'POSIX path of (choose folder with prompt "{title}")']
             output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
             path = output.strip()
             if path:
-                abs_path = os.path.abspath(path)
-                save_cached_dir(abs_path)
-                return {"status": "success", "path": abs_path}
+                return "success", os.path.abspath(path)
         except subprocess.CalledProcessError:
             logging.info("Nguoi dung da huy chon thu muc qua AppleScript.")
-            return {"status": "canceled", "path": None}
+            return "canceled", None
         except Exception as e:
             logging.warning(f"AppleScript that bai: {e}")
 
-    try:
-        cmd = [
-            sys.executable,
-            "-c",
-            f"import tkinter as tk; from tkinter import filedialog; root=tk.Tk(); root.withdraw(); root.attributes('-topmost', True); print(filedialog.askdirectory(title='{DIALOG_TITLE}'))"
-        ]
-        output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
-        path = output.strip()
-        if path:
-            abs_path = os.path.abspath(path)
-            save_cached_dir(abs_path)
-            return {"status": "success", "path": abs_path}
-        else:
-            logging.info("Nguoi dung da huy chon thu muc qua Tkinter Subprocess.")
-            return {"status": "canceled", "path": None}
-    except Exception as e:
-        err_msg = str(e)
-        if hasattr(e, 'stderr') and e.stderr:
-            err_msg = e.stderr.strip()
-        logging.error(f"Khong the mo bat ky hop thoai do hoa nao cua OS: {err_msg}")
-
-    return JSONResponse(
-        status_code=500,
-        content={
-            "status": "error",
-            "message": "Không thể kết nối đến giao diện màn hình Desktop của hệ điều hành. Vui lòng kiểm tra cổng DISPLAY hoặc khởi chạy lại ứng dụng bằng terminal mặc định ngoài màn hình chính."
-        }
-    )
-
-
-@app.post("/api/subtitle/select-video-folder")
-def select_video_folder():
-    env = get_gui_env()
-    dialog_title = "Chọn thư mục chứa video phụ đề"
-
-    if sys.platform.startswith("linux"):
-        if shutil.which("zenity"):
-            try:
-                cmd = ["zenity", "--file-selection", "--directory", f"--title={dialog_title}"]
-                output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
-                path = output.strip()
-                if path:
-                    return {"status": "success", "path": os.path.abspath(path)}
-            except subprocess.CalledProcessError as cpe:
-                if cpe.returncode == 1:
-                    logging.info("Nguoi dung da huy chon thu muc video qua Zenity.")
-                    return {"status": "canceled", "path": None}
-                logging.warning(f"Zenity loi: {cpe.stderr.decode('utf-8', errors='ignore')}")
-            except Exception as e:
-                logging.warning(f"Zenity that bai: {e}")
-
-        if shutil.which("kdialog"):
-            try:
-                cmd = ["kdialog", "--getexistingdirectory", ".", "--title", dialog_title]
-                output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
-                path = output.strip()
-                if path:
-                    return {"status": "success", "path": os.path.abspath(path)}
-            except subprocess.CalledProcessError as cpe:
-                if cpe.returncode == 1:
-                    logging.info("Nguoi dung da huy chon thu muc video qua Kdialog.")
-                    return {"status": "canceled", "path": None}
-                logging.warning(f"Kdialog loi: {cpe.stderr.decode('utf-8', errors='ignore')}")
-            except Exception as e:
-                logging.warning(f"Kdialog that bai: {e}")
-
-    if sys.platform == "darwin":
+    if sys.platform == "win32":
         try:
-            cmd = ["osascript", "-e", f'POSIX path of (choose folder with prompt "{dialog_title}")']
+            ps_cmd = (
+                "Add-Type -AssemblyName System.Windows.Forms; "
+                "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
+                f"$d.Description = '{title}'; "
+                "if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }"
+            )
+            cmd = ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd]
             output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
             path = output.strip()
             if path:
-                return {"status": "success", "path": os.path.abspath(path)}
-        except subprocess.CalledProcessError:
-            logging.info("Nguoi dung da huy chon thu muc video qua AppleScript.")
-            return {"status": "canceled", "path": None}
-        except Exception as e:
-            logging.warning(f"AppleScript that bai: {e}")
-
-    try:
-        cmd = [
-            sys.executable,
-            "-c",
-            f"import tkinter as tk; from tkinter import filedialog; root=tk.Tk(); root.withdraw(); root.attributes('-topmost', True); print(filedialog.askdirectory(title='{dialog_title}'))"
-        ]
-        output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
-        path = output.strip()
-        if path:
-            return {"status": "success", "path": os.path.abspath(path)}
-        else:
-            logging.info("Nguoi dung da huy chon thu muc video qua Tkinter Subprocess.")
-            return {"status": "canceled", "path": None}
-    except Exception as e:
-        err_msg = str(e)
-        if hasattr(e, 'stderr') and e.stderr:
-            err_msg = e.stderr.strip()
-        logging.error(f"Khong the mo bat ky hop thoai do hoa nao cua OS de chon thu muc video: {err_msg}")
-
-    return JSONResponse(
-        status_code=500,
-        content={
-            "status": "error",
-            "message": "Không thể kết nối đến giao diện màn hình Desktop để chọn thư mục video."
-        }
-    )
-
-
-@app.post("/api/select-proxy-file")
-def select_proxy_file():
-    env = get_gui_env()
-    dialog_title = "Chon file proxy txt"
-
-    if sys.platform.startswith("linux"):
-        if shutil.which("zenity"):
-            try:
-                cmd = ["zenity", "--file-selection", "--file-filter=*.txt", f"--title={dialog_title}"]
-                output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
-                path = output.strip()
-                if path:
-                    abs_path = os.path.abspath(path)
-                    save_cached_proxy_file(abs_path)
-                    return {"status": "success", "path": abs_path}
-            except subprocess.CalledProcessError as cpe:
-                if cpe.returncode == 1:
-                    logging.info("Nguoi dung da huy chon file proxy qua Zenity.")
-                    return {"status": "canceled", "path": None}
-                logging.warning(f"Zenity loi hoac thieu DISPLAY: {cpe.stderr.decode('utf-8', errors='ignore')}")
-            except Exception as e:
-                logging.warning(f"Zenity that bai: {e}")
-
-        if shutil.which("kdialog"):
-            try:
-                cmd = ["kdialog", "--getopenfilename", ".", "*.txt", "--title", dialog_title]
-                output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
-                path = output.strip()
-                if path:
-                    abs_path = os.path.abspath(path)
-                    save_cached_proxy_file(abs_path)
-                    return {"status": "success", "path": abs_path}
-            except subprocess.CalledProcessError as cpe:
-                if cpe.returncode == 1:
-                    logging.info("Nguoi dung da huy chon file proxy qua Kdialog.")
-                    return {"status": "canceled", "path": None}
-                logging.warning(f"Kdialog loi: {cpe.stderr.decode('utf-8', errors='ignore')}")
-            except Exception as e:
-                logging.warning(f"Kdialog that bai: {e}")
-
-    if sys.platform == "darwin":
-        try:
-            cmd = ["osascript", "-e", 'POSIX path of (choose file of type {"txt"} with prompt "Chon file proxy txt")']
-            output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
-            path = output.strip()
-            if path:
-                abs_path = os.path.abspath(path)
-                save_cached_proxy_file(abs_path)
-                return {"status": "success", "path": abs_path}
-        except subprocess.CalledProcessError:
-            logging.info("Nguoi dung da huy chon file proxy qua AppleScript.")
-            return {"status": "canceled", "path": None}
-        except Exception as e:
-            logging.warning(f"AppleScript that bai: {e}")
-
-    try:
-        cmd = [
-            sys.executable,
-            "-c",
-            f"import tkinter as tk; from tkinter import filedialog; root=tk.Tk(); root.withdraw(); root.attributes('-topmost', True); print(filedialog.askopenfilename(filetypes=[('Text files', '*.txt')], title='{dialog_title}'))"
-        ]
-        output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
-        path = output.strip()
-        if path:
-            abs_path = os.path.abspath(path)
-            save_cached_proxy_file(abs_path)
-            return {"status": "success", "path": abs_path}
-        else:
-            logging.info("Nguoi dung da huy chon file proxy qua Tkinter Subprocess.")
-            return {"status": "canceled", "path": None}
-    except Exception as e:
-        err_msg = str(e)
-        if hasattr(e, 'stderr') and e.stderr:
-            err_msg = e.stderr.strip()
-        logging.error(f"Khong the mo bat ky hop thoai do hoa nao cua OS de chon file proxy: {err_msg}")
-
-    return JSONResponse(
-        status_code=500,
-        content={
-            "status": "error",
-            "message": "Không thể kết nối đến giao diện màn hình Desktop của hệ điều hành để chọn file proxy."
-        }
-    )
-
-
-@app.post("/api/select-video-file")
-def select_video_file():
-    env = get_gui_env()
-    dialog_title = "Chon file video"
-
-    if sys.platform.startswith("linux"):
-        if shutil.which("zenity"):
-            try:
-                cmd = ["zenity", "--file-selection", "--file-filter=*.mp4 *.mkv *.mov *.avi *.webm *.m4v", f"--title={dialog_title}"]
-                output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
-                path = output.strip()
-                if path:
-                    abs_path = os.path.abspath(path)
-                    return {"status": "success", "path": abs_path}
-            except subprocess.CalledProcessError as cpe:
-                if cpe.returncode == 1:
-                    logging.info("Nguoi dung da huy chon file video qua Zenity.")
-                    return {"status": "canceled", "path": None}
-                logging.warning(f"Zenity loi hoac thieu DISPLAY: {cpe.stderr.decode('utf-8', errors='ignore')}")
-            except Exception as e:
-                logging.warning(f"Zenity that bai: {e}")
-
-        if shutil.which("kdialog"):
-            try:
-                cmd = ["kdialog", "--getopenfilename", ".", "*.mp4 *.mkv *.mov *.avi *.webm *.m4v", "--title", dialog_title]
-                output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
-                path = output.strip()
-                if path:
-                    abs_path = os.path.abspath(path)
-                    return {"status": "success", "path": abs_path}
-            except subprocess.CalledProcessError as cpe:
-                if cpe.returncode == 1:
-                    logging.info("Nguoi dung da huy chon file video qua Kdialog.")
-                    return {"status": "canceled", "path": None}
-                logging.warning(f"Kdialog loi: {cpe.stderr.decode('utf-8', errors='ignore')}")
-            except Exception as e:
-                logging.warning(f"Kdialog that bai: {e}")
-
-    if sys.platform == "darwin":
-        try:
-            cmd = ["osascript", "-e", 'POSIX path of (choose file of type {"mp4", "mkv", "mov", "avi", "webm", "m4v"} with prompt "Chon file video")']
-            output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
-            path = output.strip()
-            if path:
-                abs_path = os.path.abspath(path)
-                return {"status": "success", "path": abs_path}
-        except subprocess.CalledProcessError:
-            logging.info("Nguoi dung da huy chon file video qua AppleScript.")
-            return {"status": "canceled", "path": None}
-        except Exception as e:
-            logging.warning(f"AppleScript that bai: {e}")
-
-    try:
-        cmd = [
-            sys.executable,
-            "-c",
-            f"import tkinter as tk; from tkinter import filedialog; root=tk.Tk(); root.withdraw(); root.attributes('-topmost', True); print(filedialog.askopenfilename(filetypes=[('Video files', ('*.mp4', '*.mkv', '*.mov', '*.avi', '*.webm', '*.m4v'))], title='{dialog_title}'))"
-        ]
-        output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
-        path = output.strip()
-        if path:
-            abs_path = os.path.abspath(path)
-            return {"status": "success", "path": abs_path}
-        else:
-            logging.info("Nguoi dung da huy chon file video qua Tkinter Subprocess.")
-            return {"status": "canceled", "path": None}
-    except Exception as e:
-        err_msg = str(e)
-        if hasattr(e, 'stderr') and e.stderr:
-            err_msg = e.stderr.strip()
-        logging.error(f"Khong the mo bat ky hop thoai do hoa nao cua OS de chon file video: {err_msg}")
-
-    return JSONResponse(
-        status_code=500,
-        content={
-            "status": "error",
-            "message": "Không thể kết nối đến giao diện màn hình Desktop của hệ điều hành. Vui lòng kiểm tra cổng DISPLAY hoặc khởi chạy lại ứng dụng bằng terminal mặc định ngoài màn hình chính."
-        }
-    )
-
-
-@app.post("/api/select-srt-file")
-def select_srt_file():
-    env = get_gui_env()
-    dialog_title = "Chon file phu de SRT"
-
-    path = None
-    if sys.platform.startswith("linux"):
-        if shutil.which("zenity"):
-            try:
-                cmd = ["zenity", "--file-selection", "--file-filter=*.srt", f"--title={dialog_title}"]
-                output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
-                path = output.strip()
-            except subprocess.CalledProcessError as cpe:
-                if cpe.returncode == 1:
-                    logging.info("Nguoi dung da huy chon file srt qua Zenity.")
-                    return {"status": "canceled", "path": None}
-                logging.warning(f"Zenity loi hoac thieu DISPLAY: {cpe.stderr.decode('utf-8', errors='ignore')}")
-            except Exception as e:
-                logging.warning(f"Zenity that bai: {e}")
-
-        if not path and shutil.which("kdialog"):
-            try:
-                cmd = ["kdialog", "--getopenfilename", ".", "*.srt", "--title", dialog_title]
-                output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
-                path = output.strip()
-            except subprocess.CalledProcessError as cpe:
-                if cpe.returncode == 1:
-                    logging.info("Nguoi dung da huy chon file srt qua Kdialog.")
-                    return {"status": "canceled", "path": None}
-                logging.warning(f"Kdialog loi: {cpe.stderr.decode('utf-8', errors='ignore')}")
-            except Exception as e:
-                logging.warning(f"Kdialog that bai: {e}")
-
-    if not path and sys.platform == "darwin":
-        try:
-            cmd = ["osascript", "-e", 'POSIX path of (choose file of type {"srt"} with prompt "Chon file phu de SRT")']
-            output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
-            path = output.strip()
-        except subprocess.CalledProcessError:
-            logging.info("Nguoi dung da huy chon file srt qua AppleScript.")
-            return {"status": "canceled", "path": None}
-        except Exception as e:
-            logging.warning(f"AppleScript that bai: {e}")
-
-    if not path:
-        try:
-            cmd = [
-                sys.executable,
-                "-c",
-                f"import tkinter as tk; from tkinter import filedialog; root=tk.Tk(); root.withdraw(); root.attributes('-topmost', True); print(filedialog.askopenfilename(filetypes=[('SRT files', '*.srt')], title='{dialog_title}'))"
-            ]
-            output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
-            path = output.strip()
-            if not path:
-                logging.info("Nguoi dung da huy chon file srt qua Tkinter Subprocess.")
-                return {"status": "canceled", "path": None}
+                return "success", os.path.abspath(path)
+            else:
+                logging.info("Nguoi dung da huy chon thu muc qua PowerShell.")
+                return "canceled", None
         except Exception as e:
             err_msg = str(e)
             if hasattr(e, 'stderr') and e.stderr:
                 err_msg = e.stderr.strip()
-            logging.error(f"Khong the mo bat ky hop thoai do hoa nao cua OS de chon file srt: {err_msg}")
+            logging.warning(f"PowerShell FolderBrowserDialog that bai: {err_msg}")
 
-    if not path:
+    # Fallback to Tkinter subprocess only when not running in frozen PyInstaller mode
+    if not getattr(sys, 'frozen', False):
+        try:
+            cmd = [
+                sys.executable,
+                "-c",
+                f"import tkinter as tk; from tkinter import filedialog; root=tk.Tk(); root.withdraw(); root.attributes('-topmost', True); print(filedialog.askdirectory(title='{title}'))"
+            ]
+            output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+            path = output.strip()
+            if path:
+                return "success", os.path.abspath(path)
+            else:
+                logging.info("Nguoi dung da huy chon thu muc qua Tkinter Subprocess.")
+                return "canceled", None
+        except Exception as e:
+            err_msg = str(e)
+            if hasattr(e, 'stderr') and e.stderr:
+                err_msg = e.stderr.strip()
+            logging.error(f"Khong the mo bat ky hop thoai do hoa nao cua OS: {err_msg}")
+
+    return "error", "Không thể kết nối đến giao diện màn hình Desktop của hệ điều hành."
+
+
+def run_gui_file_dialog(
+    title: str = "Chon file",
+    linux_filter: str = "*.*",
+    mac_types: str = "",
+    powershell_filter: str = "All files (*.*)|*.*",
+    tkinter_filetypes: str = "[('All files', '*.*')]"
+) -> tuple[str, Optional[str]]:
+    """
+    Open native OS file selection dialog.
+    Returns tuple: (status, path_or_error)
+      - status: "success", "canceled", or "error"
+    """
+    env = get_gui_env()
+
+    if sys.platform.startswith("linux"):
+        if shutil.which("zenity"):
+            try:
+                cmd = ["zenity", "--file-selection", f"--file-filter={linux_filter}", f"--title={title}"]
+                output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+                path = output.strip()
+                if path:
+                    return "success", os.path.abspath(path)
+            except subprocess.CalledProcessError as cpe:
+                if cpe.returncode == 1:
+                    logging.info("Nguoi dung da huy chon file qua Zenity.")
+                    return "canceled", None
+                logging.warning(f"Zenity loi hoac thieu DISPLAY: {cpe.stderr.decode('utf-8', errors='ignore')}")
+            except Exception as e:
+                logging.warning(f"Zenity that bai: {e}")
+
+        if shutil.which("kdialog"):
+            try:
+                cmd = ["kdialog", "--getopenfilename", ".", linux_filter, "--title", title]
+                output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+                path = output.strip()
+                if path:
+                    return "success", os.path.abspath(path)
+            except subprocess.CalledProcessError as cpe:
+                if cpe.returncode == 1:
+                    logging.info("Nguoi dung da huy chon file qua Kdialog.")
+                    return "canceled", None
+                logging.warning(f"Kdialog loi: {cpe.stderr.decode('utf-8', errors='ignore')}")
+            except Exception as e:
+                logging.warning(f"Kdialog that bai: {e}")
+
+    if sys.platform == "darwin":
+        try:
+            type_expr = f'of type {{{mac_types}}} ' if mac_types else ''
+            cmd = ["osascript", "-e", f'POSIX path of (choose file {type_expr}with prompt "{title}")']
+            output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+            path = output.strip()
+            if path:
+                return "success", os.path.abspath(path)
+        except subprocess.CalledProcessError:
+            logging.info("Nguoi dung da huy chon file qua AppleScript.")
+            return "canceled", None
+        except Exception as e:
+            logging.warning(f"AppleScript that bai: {e}")
+
+    if sys.platform == "win32":
+        try:
+            ps_cmd = (
+                "Add-Type -AssemblyName System.Windows.Forms; "
+                "$f = New-Object System.Windows.Forms.OpenFileDialog; "
+                f"$f.Title = '{title}'; "
+                f"$f.Filter = '{powershell_filter}'; "
+                "if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.FileName }"
+            )
+            cmd = ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd]
+            output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+            path = output.strip()
+            if path:
+                return "success", os.path.abspath(path)
+            else:
+                logging.info("Nguoi dung da huy chon file qua PowerShell.")
+                return "canceled", None
+        except Exception as e:
+            err_msg = str(e)
+            if hasattr(e, 'stderr') and e.stderr:
+                err_msg = e.stderr.strip()
+            logging.warning(f"PowerShell OpenFileDialog that bai: {err_msg}")
+
+    # Fallback to Tkinter subprocess only when not running in frozen PyInstaller mode
+    if not getattr(sys, 'frozen', False):
+        try:
+            cmd = [
+                sys.executable,
+                "-c",
+                f"import tkinter as tk; from tkinter import filedialog; root=tk.Tk(); root.withdraw(); root.attributes('-topmost', True); print(filedialog.askopenfilename(filetypes={tkinter_filetypes}, title='{title}'))"
+            ]
+            output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
+            path = output.strip()
+            if path:
+                return "success", os.path.abspath(path)
+            else:
+                logging.info("Nguoi dung da huy chon file qua Tkinter Subprocess.")
+                return "canceled", None
+        except Exception as e:
+            err_msg = str(e)
+            if hasattr(e, 'stderr') and e.stderr:
+                err_msg = e.stderr.strip()
+            logging.error(f"Khong the mo bat ky hop thoai do hoa nao cua OS: {err_msg}")
+
+    return "error", "Không thể kết nối đến giao diện màn hình Desktop của hệ điều hành."
+
+
+@app.post("/api/select-directory")
+def select_directory():
+    status, path_or_err = run_gui_folder_dialog(title=DIALOG_TITLE)
+    if status == "success":
+        save_cached_dir(path_or_err)
+        return {"status": "success", "path": path_or_err}
+    elif status == "canceled":
+        return {"status": "canceled", "path": None}
+    else:
         return JSONResponse(
             status_code=500,
             content={
                 "status": "error",
-                "message": "Không thể kết nối đến giao diện màn hình Desktop của hệ điều hành để chọn file srt."
+                "message": path_or_err or "Không thể kết nối đến giao diện màn hình Desktop của hệ điều hành."
+            }
+        )
+
+
+@app.post("/api/subtitle/select-video-folder")
+def select_video_folder():
+    dialog_title = "Chọn thư mục chứa video phụ đề"
+    status, path_or_err = run_gui_folder_dialog(title=dialog_title)
+    if status == "success":
+        return {"status": "success", "path": path_or_err}
+    elif status == "canceled":
+        return {"status": "canceled", "path": None}
+    else:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": path_or_err or "Không thể kết nối đến giao diện màn hình Desktop để chọn thư mục video."
+            }
+        )
+
+
+@app.post("/api/select-proxy-file")
+def select_proxy_file():
+    dialog_title = "Chon file proxy txt"
+    status, path_or_err = run_gui_file_dialog(
+        title=dialog_title,
+        linux_filter="*.txt",
+        mac_types='"txt"',
+        powershell_filter="Text files (*.txt)|*.txt|All files (*.*)|*.*",
+        tkinter_filetypes="[('Text files', '*.txt')]"
+    )
+    if status == "success":
+        save_cached_proxy_file(path_or_err)
+        return {"status": "success", "path": path_or_err}
+    elif status == "canceled":
+        return {"status": "canceled", "path": None}
+    else:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": path_or_err or "Không thể kết nối đến giao diện màn hình Desktop để chọn file proxy."
+            }
+        )
+
+
+@app.post("/api/select-video-file")
+def select_video_file():
+    dialog_title = "Chon file video"
+    status, path_or_err = run_gui_file_dialog(
+        title=dialog_title,
+        linux_filter="*.mp4 *.mkv *.mov *.avi *.webm *.m4v",
+        mac_types='"mp4", "mkv", "mov", "avi", "webm", "m4v"',
+        powershell_filter="Video files (*.mp4;*.mkv;*.mov;*.avi;*.webm;*.m4v)|*.mp4;*.mkv;*.mov;*.avi;*.webm;*.m4v|All files (*.*)|*.*",
+        tkinter_filetypes="[('Video files', ('*.mp4', '*.mkv', '*.mov', '*.avi', '*.webm', '*.m4v'))]"
+    )
+    if status == "success":
+        return {"status": "success", "path": path_or_err}
+    elif status == "canceled":
+        return {"status": "canceled", "path": None}
+    else:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": path_or_err or "Không thể kết nối đến giao diện màn hình Desktop của hệ điều hành."
+            }
+        )
+
+
+@app.post("/api/select-srt-file")
+def select_srt_file():
+    dialog_title = "Chon file phu de SRT"
+    status, path_or_err = run_gui_file_dialog(
+        title=dialog_title,
+        linux_filter="*.srt",
+        mac_types='"srt"',
+        powershell_filter="SRT files (*.srt)|*.srt|All files (*.*)|*.*",
+        tkinter_filetypes="[('SRT files', '*.srt')]"
+    )
+    if status == "success":
+        try:
+            abs_path = os.path.abspath(path_or_err)
+            with open(abs_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            return {"status": "success", "path": abs_path, "content": content}
+        except Exception as e:
+            logging.error(f"Loi doc file srt: {e}")
+            return JSONResponse(
+                status_code=500,
+                content={"status": "error", "message": f"Không thể đọc nội dung file SRT: {e}"}
+            )
+    elif status == "canceled":
+        return {"status": "canceled", "path": None}
+    else:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": path_or_err or "Không thể kết nối đến giao diện màn hình Desktop để chọn file srt."
             }
         )
 
