@@ -12,9 +12,12 @@ export function initDownload() {
     if (btnDownload) {
         btnDownload.addEventListener('click', async () => {
             const targetPath = customOutputDir.dataset.fullPath || null;
+            const browserSelect = document.getElementById('browser-select');
+            const selectedBrowser = (browserSelect && browserSelect.value) ? browserSelect.value : (state.currentWorkingBrowser || null);
+
             const reqBody = {
                 url: state.currentAnalyzedUrl,
-                cookies_browser: state.currentWorkingBrowser,
+                cookies_browser: selectedBrowser,
                 output_dir: targetPath
             };
 

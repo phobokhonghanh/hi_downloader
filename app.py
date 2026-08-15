@@ -1073,8 +1073,24 @@ def run_gui_folder_dialog(title: str = "Chon thu muc") -> tuple[str, Optional[st
     """
     env = get_gui_env()
 
-    # 1. Windows: Native Shell.Application COM object for Folder Selection
+    # 1. Windows: Try Tkinter Native Dialog first for instant response without process timeout
     if sys.platform == "win32":
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            selected = filedialog.askdirectory(title=title)
+            root.destroy()
+            if selected:
+                return "success", os.path.abspath(selected)
+            else:
+                logging.info("Nguoi dung da huy chon thu muc qua Tkinter.")
+                return "canceled", None
+        except Exception as tk_err:
+            logging.warning(f"Tkinter FolderBrowserDialog that bai, thu fallback PowerShell: {tk_err}")
+
         try:
             ps_cmd = (
                 "$app = New-Object -ComObject Shell.Application; "
@@ -1181,8 +1197,24 @@ def run_gui_file_dialog(
     """
     env = get_gui_env()
 
-    # 1. Windows: Native WinForms OpenFileDialog via PowerShell
+    # 1. Windows: Try Tkinter Native Dialog first for instant response without process timeout
     if sys.platform == "win32":
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            selected = filedialog.askopenfilename(title=title)
+            root.destroy()
+            if selected:
+                return "success", os.path.abspath(selected)
+            else:
+                logging.info("Nguoi dung da huy chon file qua Tkinter.")
+                return "canceled", None
+        except Exception as tk_err:
+            logging.warning(f"Tkinter OpenFileDialog that bai, thu fallback PowerShell: {tk_err}")
+
         try:
             ps_cmd = (
                 "Add-Type -AssemblyName System.Windows.Forms; "

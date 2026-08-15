@@ -357,7 +357,6 @@ class DownloaderService:
                     'extract_flat': True,
                     'skip_download': True,
                     'sleep_interval_requests': 2,
-                    'playlistend': 1,
                     'logger': YDLLogger(),
                     'http_headers': {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -365,6 +364,11 @@ class DownloaderService:
                         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
                     }
                 }
+                if BILIBILI_SPACE_DOMAIN in url:
+                    ydl_opts['playlistend'] = 1
+                else:
+                    ydl_opts['noplaylist'] = True
+
                 if browser:
                     ydl_opts['cookiesfrombrowser'] = (browser,)
                 if proxy is not None:
@@ -373,15 +377,8 @@ class DownloaderService:
                 try:
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         info = ydl.extract_info(url, download=False)
-                    
-                    # try:
-                    #     import json
-                    #     with open("test.json", "w", encoding="utf-8") as _f:
-                    #         json.dump(info, _f, ensure_ascii=False, indent=2, default=str)
-                    # except Exception:
-                    #     pass
                         
-                    if 'entries' in info:
+                    if BILIBILI_SPACE_DOMAIN in url and 'entries' in info:
                         mid_match = re.search(rf'{re.escape(BILIBILI_SPACE_DOMAIN)}/(\d+)', url)
                         mid = mid_match.group(1) if mid_match else None
                         

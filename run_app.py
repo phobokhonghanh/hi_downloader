@@ -35,7 +35,33 @@ def open_browser():
     time.sleep(1.5)
     url = f"http://{APP_HOST}:{APP_PORT}"
     print(f"\n[DESKTOP LAUNCHER] DANG MO GIAO DIEN TAI: {url}")
-    webbrowser.open(url)
+    try:
+        import webview
+        webview.create_window(APP_TITLE, url, width=1280, height=800, resizable=True, maximized=True)
+        if sys.platform.startswith("linux"):
+            try:
+                import webview.platforms.qt as webview_qt
+                if hasattr(webview_qt, 'BrowserView'):
+                    def safe_perm(self, url, feature):
+                        try:
+                            from qtpy.QtWebEngineCore import QWebEnginePage
+                            self.setFeaturePermission(url, feature, QWebEnginePage.PermissionPolicy.PermissionDeniedByUser)
+                        except Exception:
+                            pass
+                    webview_qt.BrowserView.onFeaturePermissionRequested = safe_perm
+            except Exception:
+                pass
+            try:
+                webview.start(gui="qt")
+            except Exception:
+                webview.start()
+        else:
+            webview.start()
+        print("\n[DESKTOP LAUNCHER] CUA SO UNG DUNG DA DONG. DANG THOAT...")
+        sys.exit(0)
+    except Exception as e:
+        print(f"[DESKTOP LAUNCHER] (Không mở được cửa sổ pywebview: {e}) -> Bật trình duyệt hệ thống...")
+        webbrowser.open(url)
 
 if __name__ == "__main__":
     # Sửa lỗi đa luồng nhân bản vô hạn của PyInstaller trên Windows
@@ -49,10 +75,10 @@ if __name__ == "__main__":
     server_thread = threading.Thread(target=start_server, daemon=True)
     server_thread.start()
     
-    # Tự động mở trình duyệt
+    # Khởi chạy giao diện Desktop
     open_browser()
     
-    # Giữ luồng chính chạy
+    # Giữ luồng chính chạy (nếu dùng fallback webbrowser)
     try:
         while True:
             time.sleep(1)
