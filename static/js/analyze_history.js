@@ -119,13 +119,79 @@ export function displayAnalysisResult(data) {
     if (data.type === 'video') {
         analysisTitle.textContent = "KẾT QUẢ PHÂN TÍCH: VIDEO";
         
-        const titleDiv = document.createElement('div');
-        titleDiv.textContent = `TIÊU ĐỀ: ${data.title}`;
-        const uploaderDiv = document.createElement('div');
-        uploaderDiv.textContent = `KÊNH: ${data.uploader}`;
+        const container = document.createElement('div');
+        container.style.cssText = "display: flex; gap: 14px; margin-bottom: 12px; align-items: flex-start;";
         
-        analysisSummary.appendChild(titleDiv);
-        analysisSummary.appendChild(uploaderDiv);
+        if (data.thumbnail) {
+            const thumbImg = document.createElement('img');
+            let thumbUrl = data.thumbnail;
+            if (thumbUrl.startsWith('http://')) {
+                thumbUrl = thumbUrl.replace('http://', 'https://');
+            }
+            thumbImg.src = thumbUrl;
+            thumbImg.alt = "Thumbnail";
+            thumbImg.referrerPolicy = "no-referrer";
+            thumbImg.style.cssText = "width: 130px; height: 80px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); flex-shrink: 0;";
+            thumbImg.onerror = () => {
+                thumbImg.style.display = 'none';
+            };
+            container.appendChild(thumbImg);
+        }
+
+        const infoDiv = document.createElement('div');
+        infoDiv.style.cssText = "display: flex; flex-direction: column; gap: 4px; flex: 1; font-size: 0.76rem;";
+
+        const titleDiv = document.createElement('div');
+        titleDiv.style.fontWeight = '700';
+        titleDiv.style.color = 'var(--text-color)';
+        titleDiv.textContent = data.title;
+        infoDiv.appendChild(titleDiv);
+
+        const uploaderDiv = document.createElement('div');
+        uploaderDiv.style.color = 'var(--text-muted)';
+        const uploaderIdStr = data.uploader_id ? ` (ID: ${data.uploader_id})` : '';
+        uploaderDiv.textContent = `Kênh: ${data.uploader}${uploaderIdStr}`;
+        infoDiv.appendChild(uploaderDiv);
+
+        const metaParts = [];
+        if (data.duration_string || data.duration) {
+            const dur = data.duration_string || `${Math.floor(data.duration / 60)}:${String(Math.floor(data.duration % 60)).padStart(2, '0')}`;
+            metaParts.push(`⏱ ${dur}`);
+        }
+        if (data.upload_date) {
+            const d = String(data.upload_date);
+            const formattedDate = d.length === 8 ? `${d.substring(6,8)}/${d.substring(4,6)}/${d.substring(0,4)}` : d;
+            metaParts.push(`📅 ${formattedDate}`);
+        }
+        if (data.view_count) {
+            metaParts.push(`👁 ${Number(data.view_count).toLocaleString()} lượt xem`);
+        }
+        if (data.filesize_approx) {
+            const mb = (Number(data.filesize_approx) / (1024 * 1024)).toFixed(1);
+            metaParts.push(`💾 ~${mb} MB`);
+        }
+
+        if (metaParts.length > 0) {
+            const metaDiv = document.createElement('div');
+            metaDiv.style.cssText = "font-size: 0.7rem; color: #64748b; margin-top: 2px;";
+            metaDiv.textContent = metaParts.join(' • ');
+            infoDiv.appendChild(metaDiv);
+        }
+
+        if (data.tags && data.tags.length > 0) {
+            const tagsDiv = document.createElement('div');
+            tagsDiv.style.cssText = "display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px;";
+            data.tags.slice(0, 6).forEach(tag => {
+                const tagSpan = document.createElement('span');
+                tagSpan.style.cssText = "font-size: 0.62rem; padding: 2px 6px; background: #e2e8f0; color: #334155; border-radius: 4px; font-weight: 500;";
+                tagSpan.textContent = `#${tag}`;
+                tagsDiv.appendChild(tagSpan);
+            });
+            infoDiv.appendChild(tagsDiv);
+        }
+
+        container.appendChild(infoDiv);
+        analysisSummary.appendChild(container);
 
         qualitySelectorGroup.style.display = 'block';
         spacePagesGroup.style.display = 'none';

@@ -373,6 +373,13 @@ class DownloaderService:
                 try:
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         info = ydl.extract_info(url, download=False)
+                    
+                    # try:
+                    #     import json
+                    #     with open("test.json", "w", encoding="utf-8") as _f:
+                    #         json.dump(info, _f, ensure_ascii=False, indent=2, default=str)
+                    # except Exception:
+                    #     pass
                         
                     if 'entries' in info:
                         mid_match = re.search(rf'{re.escape(BILIBILI_SPACE_DOMAIN)}/(\d+)', url)
@@ -417,7 +424,14 @@ class DownloaderService:
                             "type": "video",
                             "title": info.get("title", "Video Don Le"),
                             "uploader": info.get("uploader", "Unknown"),
+                            "uploader_id": info.get("uploader_id"),
+                            "upload_date": info.get("upload_date"),
+                            "thumbnail": info.get("thumbnail"),
+                            "duration_string": info.get("duration_string"),
                             "duration": info.get("duration", 0),
+                            "view_count": info.get("view_count"),
+                            "tags": info.get("tags", []),
+                            "filesize_approx": info.get("filesize_approx"),
                             "qualities": quality_labels,
                             "working_browser": browser
                         }
