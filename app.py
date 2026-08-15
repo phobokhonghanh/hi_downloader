@@ -1073,16 +1073,13 @@ def run_gui_folder_dialog(title: str = "Chon thu muc") -> tuple[str, Optional[st
     """
     env = get_gui_env()
 
-    # 1. Windows: Native WinForms FolderBrowserDialog via PowerShell in STA mode
+    # 1. Windows: Native Shell.Application COM object for Folder Selection
     if sys.platform == "win32":
         try:
             ps_cmd = (
-                "Add-Type -AssemblyName System.Windows.Forms; "
-                "$top = New-Object System.Windows.Forms.Form; $top.TopMost = $true; "
-                "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
-                f"$d.Description = '{title}'; "
-                "if ($d.ShowDialog($top) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }; "
-                "$top.Dispose()"
+                "$app = New-Object -ComObject Shell.Application; "
+                f"$folder = $app.BrowseForFolder(0, '{title}', 0, 0); "
+                "if ($folder) { Write-Output $folder.Self.Path }"
             )
             cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Sta", "-Command", ps_cmd]
             output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
@@ -1184,17 +1181,15 @@ def run_gui_file_dialog(
     """
     env = get_gui_env()
 
-    # 1. Windows: Native WinForms OpenFileDialog via PowerShell in STA mode
+    # 1. Windows: Native WinForms OpenFileDialog via PowerShell
     if sys.platform == "win32":
         try:
             ps_cmd = (
                 "Add-Type -AssemblyName System.Windows.Forms; "
-                "$top = New-Object System.Windows.Forms.Form; $top.TopMost = $true; "
                 "$f = New-Object System.Windows.Forms.OpenFileDialog; "
                 f"$f.Title = '{title}'; "
                 f"$f.Filter = '{powershell_filter}'; "
-                "if ($f.ShowDialog($top) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.FileName }; "
-                "$top.Dispose()"
+                "if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.FileName }"
             )
             cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Sta", "-Command", ps_cmd]
             output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
