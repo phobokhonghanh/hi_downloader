@@ -1117,11 +1117,12 @@ def win32_select_folder_ctypes(title: str = "Chon thu muc") -> Optional[str]:
         BIF_RETURNONLYFSDIRS = 0x0001
         BIF_NEWDIALOGSTYLE = 0x0040
 
+        hwnd = ctypes.windll.user32.GetForegroundWindow()
         buf = ctypes.create_unicode_buffer(260)
         bi = BROWSEINFOW()
-        bi.hwndOwner = None
+        bi.hwndOwner = hwnd
         bi.pidlRoot = None
-        bi.pszDisplayName = buf
+        bi.pszDisplayName = ctypes.cast(buf, wintypes.LPWSTR)
         bi.lpszTitle = title
         bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE
         bi.lpfn = None
@@ -1147,10 +1148,11 @@ def win32_select_file_ctypes(title: str = "Chon file", win_filter: str = "All Fi
         OFN_FILEMUSTEXIST = 0x1000
         OFN_NOCHANGEDIR = 0x0008
 
+        hwnd = ctypes.windll.user32.GetForegroundWindow()
         filename_buf = ctypes.create_unicode_buffer(260)
         ofn = OPENFILENAMEW()
         ofn.lStructSize = ctypes.sizeof(OPENFILENAMEW)
-        ofn.hwndOwner = None
+        ofn.hwndOwner = hwnd
         ofn.lpstrFilter = win_filter
         ofn.lpstrFile = ctypes.cast(filename_buf, wintypes.LPWSTR)
         ofn.nMaxFile = 260
@@ -1178,13 +1180,14 @@ def run_gui_folder_dialog(title: str = "Chon thu muc") -> tuple[str, Optional[st
         if path:
             return "success", os.path.abspath(path)
 
-        # Fallback to PowerShell with -Sta -ExecutionPolicy Bypass (WITHOUT -NonInteractive)
+        # Fallback to PowerShell with TopMost form owner
         try:
             ps_cmd = (
                 "Add-Type -AssemblyName System.Windows.Forms; "
+                "$top = New-Object System.Windows.Forms.Form; $top.TopMost = $true; "
                 "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
                 f"$d.Description = '{title}'; "
-                "if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }"
+                "if ($d.ShowDialog($top) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }"
             )
             cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Sta", "-Command", ps_cmd]
             output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
@@ -1291,14 +1294,15 @@ def run_gui_file_dialog(
         if path:
             return "success", os.path.abspath(path)
 
-        # Fallback to PowerShell with -Sta -ExecutionPolicy Bypass (WITHOUT -NonInteractive)
+        # Fallback to PowerShell with TopMost form owner
         try:
             ps_cmd = (
                 "Add-Type -AssemblyName System.Windows.Forms; "
+                "$top = New-Object System.Windows.Forms.Form; $top.TopMost = $true; "
                 "$f = New-Object System.Windows.Forms.OpenFileDialog; "
                 f"$f.Title = '{title}'; "
                 f"$f.Filter = '{powershell_filter}'; "
-                "if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.FileName }"
+                "if ($f.ShowDialog($top) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.FileName }"
             )
             cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Sta", "-Command", ps_cmd]
             output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
