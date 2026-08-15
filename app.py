@@ -1065,107 +1065,6 @@ def get_gui_env() -> dict:
     return env
 
 
-# Win32 ctypes structures and helpers for Windows File/Folder Dialogs
-import ctypes
-from ctypes import wintypes
-
-if sys.platform == "win32":
-    class BROWSEINFOW(ctypes.Structure):
-        _fields_ = [
-            ("hwndOwner", wintypes.HWND),
-            ("pidlRoot", ctypes.c_void_p),
-            ("pszDisplayName", wintypes.LPWSTR),
-            ("lpszTitle", wintypes.LPCWSTR),
-            ("ulFlags", wintypes.UINT),
-            ("lpfn", ctypes.c_void_p),
-            ("lParam", wintypes.LPARAM),
-            ("iImage", ctypes.c_int)
-        ]
-
-    class OPENFILENAMEW(ctypes.Structure):
-        _fields_ = [
-            ("lStructSize", wintypes.DWORD),
-            ("hwndOwner", wintypes.HWND),
-            ("hInstance", wintypes.HINSTANCE),
-            ("lpstrFilter", wintypes.LPCWSTR),
-            ("lpstrCustomFilter", wintypes.LPWSTR),
-            ("nMaxCustFilter", wintypes.DWORD),
-            ("nFilterIndex", wintypes.DWORD),
-            ("lpstrFile", wintypes.LPWSTR),
-            ("nMaxFile", wintypes.DWORD),
-            ("lpstrFileTitle", wintypes.LPWSTR),
-            ("nMaxFileTitle", wintypes.DWORD),
-            ("lpstrInitialDir", wintypes.LPCWSTR),
-            ("lpstrTitle", wintypes.LPCWSTR),
-            ("Flags", wintypes.DWORD),
-            ("nFileOffset", wintypes.WORD),
-            ("nFileExtension", wintypes.WORD),
-            ("lpstrDefExt", wintypes.LPCWSTR),
-            ("lCustData", wintypes.LPARAM),
-            ("lpfnHook", ctypes.c_void_p),
-            ("lpTemplateName", wintypes.LPCWSTR),
-            ("pvReserved", ctypes.c_void_p),
-            ("dwReserved", wintypes.DWORD),
-            ("FlagsEx", wintypes.DWORD),
-        ]
-
-
-def win32_select_folder_ctypes(title: str = "Chon thu muc") -> Optional[str]:
-    if sys.platform != "win32":
-        return None
-    try:
-        BIF_RETURNONLYFSDIRS = 0x0001
-        BIF_NEWDIALOGSTYLE = 0x0040
-
-        hwnd = ctypes.windll.user32.GetForegroundWindow()
-        buf = ctypes.create_unicode_buffer(260)
-        bi = BROWSEINFOW()
-        bi.hwndOwner = hwnd
-        bi.pidlRoot = None
-        bi.pszDisplayName = ctypes.cast(buf, wintypes.LPWSTR)
-        bi.lpszTitle = title
-        bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE
-        bi.lpfn = None
-        bi.lParam = 0
-
-        pidl = ctypes.windll.shell32.SHBrowseForFolderW(ctypes.byref(bi))
-        if pidl:
-            path_buf = ctypes.create_unicode_buffer(260)
-            if ctypes.windll.shell32.SHGetPathFromIDListW(pidl, path_buf):
-                ctypes.windll.ole32.CoTaskMemFree(pidl)
-                return path_buf.value
-            ctypes.windll.ole32.CoTaskMemFree(pidl)
-    except Exception as e:
-        logging.warning(f"Win32 ctypes SHBrowseForFolderW failing: {e}")
-    return None
-
-
-def win32_select_file_ctypes(title: str = "Chon file", win_filter: str = "All Files\0*.*\0\0") -> Optional[str]:
-    if sys.platform != "win32":
-        return None
-    try:
-        OFN_PATHMUSTEXIST = 0x0800
-        OFN_FILEMUSTEXIST = 0x1000
-        OFN_NOCHANGEDIR = 0x0008
-
-        hwnd = ctypes.windll.user32.GetForegroundWindow()
-        filename_buf = ctypes.create_unicode_buffer(260)
-        ofn = OPENFILENAMEW()
-        ofn.lStructSize = ctypes.sizeof(OPENFILENAMEW)
-        ofn.hwndOwner = hwnd
-        ofn.lpstrFilter = win_filter
-        ofn.lpstrFile = ctypes.cast(filename_buf, wintypes.LPWSTR)
-        ofn.nMaxFile = 260
-        ofn.lpstrTitle = title
-        ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR
-
-        if ctypes.windll.comdlg32.GetOpenFileNameW(ctypes.byref(ofn)):
-            return filename_buf.value
-    except Exception as e:
-        logging.warning(f"Win32 ctypes GetOpenFileNameW failing: {e}")
-    return None
-
-
 def run_gui_folder_dialog(title: str = "Chon thu muc") -> tuple[str, Optional[str]]:
     """
     Open native OS folder selection dialog.
@@ -1174,20 +1073,16 @@ def run_gui_folder_dialog(title: str = "Chon thu muc") -> tuple[str, Optional[st
     """
     env = get_gui_env()
 
-    # 1. Windows: Try Win32 ctypes API first (instant, native, no subprocess)
+    # 1. Windows: Native WinForms FolderBrowserDialog via PowerShell in STA mode
     if sys.platform == "win32":
-        path = win32_select_folder_ctypes(title=title)
-        if path:
-            return "success", os.path.abspath(path)
-
-        # Fallback to PowerShell with TopMost form owner
         try:
             ps_cmd = (
                 "Add-Type -AssemblyName System.Windows.Forms; "
                 "$top = New-Object System.Windows.Forms.Form; $top.TopMost = $true; "
                 "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
                 f"$d.Description = '{title}'; "
-                "if ($d.ShowDialog($top) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }"
+                "if ($d.ShowDialog($top) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }; "
+                "$top.Dispose()"
             )
             cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Sta", "-Command", ps_cmd]
             output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
@@ -1202,6 +1097,7 @@ def run_gui_folder_dialog(title: str = "Chon thu muc") -> tuple[str, Optional[st
             if hasattr(e, 'stderr') and e.stderr:
                 err_msg = e.stderr.strip()
             logging.warning(f"PowerShell FolderBrowserDialog that bai: {err_msg}")
+            return "error", f"Loi PowerShell FolderBrowserDialog: {err_msg}"
 
     # 2. Linux
     if sys.platform.startswith("linux"):
@@ -1288,13 +1184,8 @@ def run_gui_file_dialog(
     """
     env = get_gui_env()
 
-    # 1. Windows: Try Win32 ctypes API first (instant, native, no subprocess)
+    # 1. Windows: Native WinForms OpenFileDialog via PowerShell in STA mode
     if sys.platform == "win32":
-        path = win32_select_file_ctypes(title=title, win_filter=win_ctypes_filter)
-        if path:
-            return "success", os.path.abspath(path)
-
-        # Fallback to PowerShell with TopMost form owner
         try:
             ps_cmd = (
                 "Add-Type -AssemblyName System.Windows.Forms; "
@@ -1302,7 +1193,8 @@ def run_gui_file_dialog(
                 "$f = New-Object System.Windows.Forms.OpenFileDialog; "
                 f"$f.Title = '{title}'; "
                 f"$f.Filter = '{powershell_filter}'; "
-                "if ($f.ShowDialog($top) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.FileName }"
+                "if ($f.ShowDialog($top) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.FileName }; "
+                "$top.Dispose()"
             )
             cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Sta", "-Command", ps_cmd]
             output = subprocess.check_output(cmd, env=env, text=True, stderr=subprocess.PIPE, timeout=60)
@@ -1317,6 +1209,7 @@ def run_gui_file_dialog(
             if hasattr(e, 'stderr') and e.stderr:
                 err_msg = e.stderr.strip()
             logging.warning(f"PowerShell OpenFileDialog that bai: {err_msg}")
+            return "error", f"Loi PowerShell OpenFileDialog: {err_msg}"
 
     # 2. Linux
     if sys.platform.startswith("linux"):
