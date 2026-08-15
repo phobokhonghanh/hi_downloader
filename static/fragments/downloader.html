@@ -63,8 +63,18 @@
 
     <div class="form-group">
         <label for="url">Đường dẫn URL Bilibili</label>
-        <input type="text" id="url" required
-            placeholder="Dán link video (BV...) hoặc link trang cá nhân (Space)...">
+        <div style="display: flex; gap: 8px;">
+            <input type="text" id="url" required placeholder="Dán link video (BV...) hoặc link trang cá nhân (Space)..." style="flex: 1;">
+            <select id="browser-select" style="width: 140px; font-size: 0.8rem; padding: 6px; border: 1px solid var(--border); border-radius: 4px; background: #fff;">
+                <option value="">Không Cookie</option>
+                <option value="chrome">Chrome</option>
+                <option value="edge">Edge</option>
+                <option value="firefox">Firefox</option>
+                <option value="opera">Opera</option>
+                <option value="vivaldi">Vivaldi</option>
+                <option value="safari">Safari</option>
+            </select>
+        </div>
     </div>
 
     <button type="button" class="btn btn-outline-blue" id="btn-analyze" style="margin-bottom: 20px;">Tìm

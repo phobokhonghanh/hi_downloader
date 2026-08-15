@@ -45,6 +45,36 @@ BilibiliSpaceVideoIE._download_json = patched_download_json
 # Monkeypatch BilibiliBaseIE sign wbi to shift pages directly
 
 
+_cached_public_ip = None
+
+def get_public_ip() -> str:
+    global _cached_public_ip
+    if _cached_public_ip:
+        return _cached_public_ip
+    
+    for url in ["https://api.ipify.org", "https://icanhazip.com"]:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=2.5) as resp:
+                ip = resp.read().decode('utf-8').strip()
+                if ip:
+                    _cached_public_ip = ip
+                    return ip
+        except Exception:
+            pass
+    return "127.0.0.1"
+
+
+def format_proxy_info(proxy: Optional[str]) -> str:
+    if proxy:
+        clean = proxy.replace("http://", "").replace("https://", "")
+        if "@" in clean:
+            clean = clean.split("@")[-1]
+        return f"IP: {clean}"
+    
+    return f"IP: {get_public_ip()}"
+
+
 def get_proxy_source_label(config_file: str) -> str:
     from modules.common.paths import get_app_dir
     proxy_disabled = False
@@ -78,22 +108,31 @@ def get_proxy_source_label(config_file: str) -> str:
     if has_custom:
         return "custom proxy"
 
-    # Check system file validity
-    sys_file = os.path.join(get_app_dir("config"), "proxies.txt")
+    # Check system file validity in candidate locations
+    meipass = getattr(sys, '_MEIPASS', None)
+    sys_candidates = [
+        os.path.join(get_app_dir("config"), "proxies.txt"),
+        os.path.join(os.getcwd(), "proxies.txt"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "proxies.txt")
+    ]
+    if meipass:
+        sys_candidates.insert(0, os.path.join(meipass, "proxies.txt"))
     has_system = False
-    if sys_file and os.path.exists(sys_file) and os.path.isfile(sys_file):
-        try:
-            with open(sys_file, "r", encoding="utf-8") as f:
-                lines = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
-                if lines:
-                    has_system = True
-        except Exception:
-            pass
+    for sys_file in sys_candidates:
+        if sys_file and os.path.exists(sys_file) and os.path.isfile(sys_file):
+            try:
+                with open(sys_file, "r", encoding="utf-8") as f:
+                    lines = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
+                    if lines:
+                        has_system = True
+                        break
+            except Exception:
+                pass
 
     if has_system:
         return "system proxy"
 
-    return "Không có proxy khả dụng"
+    return "Proxy Mặc định của Hệ Điều Hành"
 
 original_sign_wbi = BilibiliBaseIE._sign_wbi
 
@@ -108,24 +147,7 @@ def patched_sign_wbi(self, query, *args, **kwargs):
 BilibiliBaseIE._sign_wbi = patched_sign_wbi
 
 
-def detect_working_browsers() -> list:
-    working = []
-    try:
-        from yt_dlp.cookies import extract_cookies_from_browser
-    except Exception:
-        return ["firefox", "chrome", "safari", "edge"]
-        
-    for browser in ["firefox", "chrome", "safari", "edge"]:
-        try:
-            cj = extract_cookies_from_browser(browser)
-            if cj and len(cj) > 0:
-                working.append(browser)
-        except Exception:
-            pass
-    return working
-
-
-WORKING_BROWSERS = detect_working_browsers()
+SUPPORTED_BROWSERS = ["chrome", "edge", "firefox", "opera", "vivaldi", "safari"]
 
 
 class YDLLogger:
@@ -219,7 +241,7 @@ class DownloaderService:
                 pass
 
         if proxy_disabled:
-            return [None]
+            return [""]
 
         proxy_file = None
         has_custom = False
@@ -235,7 +257,25 @@ class DownloaderService:
         if has_custom:
             proxy_file = custom_proxy_file
         else:
-            proxy_file = os.path.join(get_app_dir("config"), "proxies.txt")
+            meipass = getattr(sys, '_MEIPASS', None)
+            candidates = [
+                os.path.join(get_app_dir("config"), "proxies.txt"),
+                os.path.join(os.getcwd(), "proxies.txt"),
+                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "proxies.txt")
+            ]
+            if meipass:
+                candidates.insert(0, os.path.join(meipass, "proxies.txt"))
+            proxy_file = None
+            for c in candidates:
+                if os.path.exists(c) and os.path.isfile(c):
+                    try:
+                        with open(c, "r", encoding="utf-8") as f:
+                            lines = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
+                            if lines:
+                                proxy_file = c
+                                break
+                    except Exception:
+                        pass
 
         if not proxy_file or not os.path.exists(proxy_file):
             return [None]
@@ -282,115 +322,116 @@ class DownloaderService:
                 pairs.append((b, p))
         return pairs
 
-    def get_browser_rotation_list(self, primary_browser: Optional[str] = None) -> List[str]:
-        available = list(WORKING_BROWSERS) if WORKING_BROWSERS else ["firefox", "chrome"]
-        first = primary_browser if (primary_browser and primary_browser in available) else available[0]
-        rotation = [first]
-        for b in available:
-            if b not in rotation:
-                rotation.append(b)
-        return rotation
+    def get_browser_rotation_list(self, primary_browser: Optional[str] = None) -> List[Optional[str]]:
+        if primary_browser:
+            if primary_browser in SUPPORTED_BROWSERS:
+                return [primary_browser]
+            return [SUPPORTED_BROWSERS[0]]
+        return [None]
 
     def analyze(self, data: AnalyzeRequestData) -> dict:
         if hasattr(thread_local_data, 'page_start'):
             del thread_local_data.page_start
         url = self.clean_url(data.url)
         
-        pairs = self.get_retry_pairs(data.cookies_browser)
-        max_attempts = len(pairs)
-        self._log_user(f"Bắt đầu phân tích URL: {url} (Tổng số {max_attempts} tổ hợp Trình duyệt × Proxy)")
+        browser = data.cookies_browser
+        proxies = self.get_all_proxies()
+        total_proxies = len(proxies)
+        
+        browser_label = browser if browser else "Không dùng Cookie"
+        self._log_user(f"Bắt đầu phân tích URL: {url} (Trình duyệt: {browser_label} | {total_proxies} Proxy)")
         
         last_err = None
         
-        from modules.common.paths import get_app_dir
-        config_file = os.path.join(get_app_dir("config"), "config.json")
-        
-        for attempt, (browser, proxy) in enumerate(pairs, start=1):
-            proxy_source = get_proxy_source_label(config_file)
-            proxy_info = f" | Proxy: {proxy.split('@')[-1]} ({proxy_source})" if proxy else f" | {proxy_source}"
-            if attempt == 1:
-                self._log_user(f"Lần thử 1/{max_attempts}: Trình duyệt {browser}{proxy_info}")
-            else:
-                self._log_user(f"Lần thử {attempt}/{max_attempts}: Xoay sang Trình duyệt {browser}{proxy_info}", level="WARNING")
-                time.sleep(1.5)
-                
-            ydl_opts = {
-                'extract_flat': True,
-                'skip_download': True,
-                'sleep_interval_requests': 2,
-                'playlistend': 1,
-                'logger': YDLLogger(),
-                'cookiesfrombrowser': (browser,),
-                'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                    'Referer': 'https://www.bilibili.com/',
-                    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                }
-            }
-                
-            if proxy:
-                logging.info(f"[ANALYZE] Attempt {attempt}/{max_attempts} - Using Proxy: {proxy.split('@')[-1]} (Cookies: {browser})")
-                ydl_opts['proxy'] = proxy
-
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(url, download=False)
-                    
-                if 'entries' in info:
-                    mid_match = re.search(rf'{re.escape(BILIBILI_SPACE_DOMAIN)}/(\d+)', url)
-                    mid = mid_match.group(1) if mid_match else None
-                    
-                    total_videos = 0
-                    if mid and str(mid) in captured_space_video_count:
-                        total_videos = captured_space_video_count[str(mid)]
-                    else:
-                        total_videos = len(info.get('entries', []))
-
-                    total_pages = (total_videos + 29) // 30
-                    self._log_user(f"Phân tích Kênh thành công: {info.get('title')} ({total_videos} video)", level="SUCCESS")
-                    return {
-                        "type": "space",
-                        "title": info.get("title", "Bilibili Space"),
-                        "total_videos": total_videos,
-                        "total_pages": total_pages,
-                        "working_browser": browser
-                    }
+        for p_idx, proxy in enumerate(proxies, start=1):
+            proxy_label = format_proxy_info(proxy)
+            for attempt in range(1, 4):
+                log_tag = f"[Proxy {p_idx}/{total_proxies} - Lần {attempt}/3] {proxy_label}"
+                if p_idx == 1 and attempt == 1:
+                    self._log_user(f"Bắt đầu phân tích: {log_tag}")
                 else:
-                    formats = info.get("formats", [])
-                    heights = set()
-                    for fmt in formats:
-                        h = fmt.get("height")
-                        if h and h >= 360:
-                            heights.add(h)
+                    self._log_user(f"Thử lại: {log_tag}", level="WARNING")
+                    time.sleep(1.5)
                     
-                    available_qualities = sorted(list(heights), reverse=True)
-                    quality_labels = []
-                    for h in available_qualities:
-                        if h >= 2160: quality_labels.append({"value": str(h), "label": f"{h}p (4K ULTRA HD)"})
-                        elif h >= 1080: quality_labels.append({"value": str(h), "label": f"{h}p (FULL HD)"})
-                        elif h >= 720: quality_labels.append({"value": str(h), "label": f"{h}p (HD)"})
-                        else: quality_labels.append({"value": str(h), "label": f"{h}p (SD)"})
-                        
-                    if not quality_labels:
-                        quality_labels.append({"value": "best", "label": "CHAT LUONG TOT NHAT (AUTO)"})
-
-                    self._log_user(f"Phân tích Video thành công: {info.get('title')}", level="SUCCESS")
-                    return {
-                        "type": "video",
-                        "title": info.get("title", "Video Don Le"),
-                        "uploader": info.get("uploader", "Unknown"),
-                        "duration": info.get("duration", 0),
-                        "qualities": quality_labels,
-                        "working_browser": browser
+                ydl_opts = {
+                    'extract_flat': True,
+                    'skip_download': True,
+                    'sleep_interval_requests': 2,
+                    'playlistend': 1,
+                    'logger': YDLLogger(),
+                    'http_headers': {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                        'Referer': 'https://www.bilibili.com/',
+                        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
                     }
-            except Exception as e:
-                last_err = e
-                err_str = str(e)
-                logging.warning(f"[ANALYZE ATTEMPT {attempt}/{max_attempts}] Failed with browser {browser}: {err_str}")
+                }
+                if browser:
+                    ydl_opts['cookiesfrombrowser'] = (browser,)
+                if proxy is not None:
+                    ydl_opts['proxy'] = proxy
+
+                try:
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        info = ydl.extract_info(url, download=False)
+                        
+                    if 'entries' in info:
+                        mid_match = re.search(rf'{re.escape(BILIBILI_SPACE_DOMAIN)}/(\d+)', url)
+                        mid = mid_match.group(1) if mid_match else None
+                        
+                        total_videos = 0
+                        if mid and str(mid) in captured_space_video_count:
+                            total_videos = captured_space_video_count[str(mid)]
+                        else:
+                            total_videos = len(info.get('entries', []))
+
+                        total_pages = (total_videos + 29) // 30
+                        self._log_user(f"Phân tích Kênh thành công: {info.get('title')} ({total_videos} video)", level="SUCCESS")
+                        return {
+                            "type": "space",
+                            "title": info.get("title", "Bilibili Space"),
+                            "total_videos": total_videos,
+                            "total_pages": total_pages,
+                            "working_browser": browser
+                        }
+                    else:
+                        formats = info.get("formats", [])
+                        heights = set()
+                        for fmt in formats:
+                            h = fmt.get("height")
+                            if h and h >= 360:
+                                heights.add(h)
+                        
+                        available_qualities = sorted(list(heights), reverse=True)
+                        quality_labels = []
+                        for h in available_qualities:
+                            if h >= 2160: quality_labels.append({"value": str(h), "label": f"{h}p (4K ULTRA HD)"})
+                            elif h >= 1080: quality_labels.append({"value": str(h), "label": f"{h}p (FULL HD)"})
+                            elif h >= 720: quality_labels.append({"value": str(h), "label": f"{h}p (HD)"})
+                            else: quality_labels.append({"value": str(h), "label": f"{h}p (SD)"})
+                            
+                        if not quality_labels:
+                            quality_labels.append({"value": "best", "label": "CHAT LUONG TOT NHAT (AUTO)"})
+
+                        self._log_user(f"Phân tích Video thành công: {info.get('title')}", level="SUCCESS")
+                        return {
+                            "type": "video",
+                            "title": info.get("title", "Video Don Le"),
+                            "uploader": info.get("uploader", "Unknown"),
+                            "duration": info.get("duration", 0),
+                            "qualities": quality_labels,
+                            "working_browser": browser
+                        }
+                except Exception as e:
+                    last_err = e
+                    err_str = str(e)
+                    logging.warning(f"[ANALYZE Proxy {p_idx}/{total_proxies} Retry {attempt}/3] Failed: {err_str}")
+            
+            if total_proxies > 1:
+                self._log_user(f"Proxy [{proxy_label}] thất bại sau 3 lần thử. Chuyển sang proxy tiếp theo...", level="WARNING")
                     
         clean_err_msg = str(last_err).replace("\u001b[0;31m", "").replace("\u001b[0m", "")
-        self._log_user(f"Lỗi phân tích URL: {clean_err_msg}", level="ERROR")
-        raise Exception(f"Loi Bilibili sau 3 lan thu: {clean_err_msg}")
+        self._log_user(f"Lỗi phân tích URL sau khi thử tất cả ({total_proxies} Proxy × 3 lần): {clean_err_msg}", level="ERROR")
+        raise Exception(f"Lỗi Bilibili sau khi thử tất cả {total_proxies} Proxy (mỗi proxy 3 lần): {clean_err_msg}")
 
     def download_worker(self, task_id: str, url: str, cookies_browser: str, quality: str, page_start: int, page_end: int, target_dir: str):
         start_time = time.time()
@@ -467,56 +508,62 @@ class DownloaderService:
             if hasattr(thread_local_data, 'page_start'):
                 del thread_local_data.page_start
 
-        pairs = self.get_retry_pairs(cookies_browser)
-        max_attempts = len(pairs)
+        proxies = self.get_all_proxies()
+        total_proxies = len(proxies)
         success = False
         last_error_msg = ""
+        global_attempt = 0
 
-        from modules.common.paths import get_app_dir
-        config_file = os.path.join(get_app_dir("config"), "config.json")
-
-        for attempt, (selected_browser, proxy) in enumerate(pairs, start=1):
+        for p_idx, proxy in enumerate(proxies, start=1):
             if self.task_store and self.task_store.is_canceled(task_id):
                 break
-                
-            try:
+            proxy_label = format_proxy_info(proxy)
+            
+            for attempt in range(1, 4):
+                if self.task_store and self.task_store.is_canceled(task_id):
+                    break
+                global_attempt += 1
                 if self.task_store:
-                    self.task_store.update_task(task_id, retry_count=attempt)
-                if proxy:
-                    logging.info(f"[TASK {task_id}] Attempt {attempt}/{max_attempts} - Using Proxy: {proxy.split('@')[-1]}")
+                    self.task_store.update_task(task_id, retry_count=global_attempt)
+                
+                if proxy is not None:
                     ydl_opts['proxy'] = proxy
                 else:
                     if 'proxy' in ydl_opts:
                         del ydl_opts['proxy']
-
-                proxy_source = get_proxy_source_label(config_file)
-                proxy_info = f" | Proxy: {proxy.split('@')[-1]} ({proxy_source})" if proxy else f" | {proxy_source}"
-                if attempt == 1:
-                    logging.info(f"[TASK {task_id}] Loading cookies: {selected_browser}")
+                
+                if cookies_browser:
+                    ydl_opts['cookiesfrombrowser'] = (cookies_browser,)
+                
+                log_tag = f"[Proxy {p_idx}/{total_proxies} - Lần {attempt}/3] {proxy_label}"
+                if p_idx == 1 and attempt == 1:
+                    logging.info(f"[TASK {task_id}] Start download: {log_tag}")
                 else:
-                    self._log_user(f"Lần thử {attempt}/{max_attempts}: Xoay sang Trình duyệt {selected_browser}{proxy_info}", level="WARNING")
-                ydl_opts['cookiesfrombrowser'] = (selected_browser,)
-
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([self.clean_url(url)])
+                    self._log_user(f"Thử lại tải xuống: {log_tag}", level="WARNING")
                 
-                success = True
-                self._log_user(f"Tải thành công video: {url}", level="SUCCESS")
-                break
-                
-            except ValueError as ve:
-                if str(ve) == "CANCELED":
-                    if self.task_store:
-                        self.task_store.update_task(task_id, status=TaskStatus.CANCELED)
-                    self._log_user(f"Tác vụ bị hủy bởi người dùng.", level="WARNING")
+                try:
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        ydl.download([self.clean_url(url)])
+                    
+                    success = True
+                    self._log_user(f"Tải thành công video: {url}", level="SUCCESS")
                     break
-                last_error_msg = str(ve)
-            except Exception as e:
-                last_error_msg = str(e)
-                logging.error(f"[TASK {task_id}] Error in attempt {attempt}/{max_attempts}: {last_error_msg}")
-                if attempt < max_attempts:
-                    self._log_user(f"Lần thử {attempt}/{max_attempts} thất bại, thử lại...", level="WARNING")
+                except ValueError as ve:
+                    if str(ve) == "CANCELED":
+                        if self.task_store:
+                            self.task_store.update_task(task_id, status=TaskStatus.CANCELED)
+                        self._log_user(f"Tác vụ bị hủy bởi người dùng.", level="WARNING")
+                        break
+                    last_error_msg = str(ve)
+                except Exception as e:
+                    last_error_msg = str(e)
+                    logging.error(f"[TASK {task_id}] Error [Proxy {p_idx}/{total_proxies} - Lần {attempt}/3]: {last_error_msg}")
                     time.sleep(2)
+            
+            if success or (self.task_store and self.task_store.is_canceled(task_id)):
+                break
+            if total_proxies > 1:
+                self._log_user(f"Proxy [{proxy_label}] thất bại sau 3 lần thử. Chuyển sang proxy tiếp theo...", level="WARNING")
 
         total_elapsed = time.time() - start_time
         if self.task_store:
@@ -551,23 +598,43 @@ class DownloaderService:
             'logger': YDLLogger()
         }
         
-        active_browser = cookies_browser or (WORKING_BROWSERS[0] if WORKING_BROWSERS else "firefox")
-        ydl_opts['cookiesfrombrowser'] = (active_browser,)
+        if cookies_browser:
+            ydl_opts['cookiesfrombrowser'] = (cookies_browser,)
             
-        proxy = self.get_rotational_proxy()
-        if proxy:
-            ydl_opts['proxy'] = proxy
+        proxies = self.get_all_proxies()
+        total_proxies = len(proxies)
+        info = None
+        last_error = None
 
         thread_local_data.page_start = page_start
         
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(self.clean_url(url), download=False)
-                
+            for p_idx, proxy in enumerate(proxies, start=1):
+                proxy_label = format_proxy_info(proxy)
+                for attempt in range(1, 4):
+                    if proxy is not None:
+                        ydl_opts['proxy'] = proxy
+                    else:
+                        if 'proxy' in ydl_opts:
+                            del ydl_opts['proxy']
+                    
+                    try:
+                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                            info = ydl.extract_info(self.clean_url(url), download=False)
+                        if info:
+                            break
+                    except Exception as e:
+                        last_error = e
+                        logging.warning(f"[SPACE EXTRACT Proxy {p_idx}/{total_proxies} Retry {attempt}/3] Failed: {e}")
+                        time.sleep(1.5)
+                if info:
+                    break
+
             entries = info.get('entries', []) if info else []
             if not entries:
-                raise ValueError("Không tìm thấy video nào trong phạm vi trang đã chọn.")
-                
+                err_msg = str(last_error) if last_error else "Không tìm thấy video nào trong phạm vi trang đã chọn."
+                raise ValueError(f"Lỗi trích xuất Kênh: {err_msg}")
+                    
             if max_videos and max_videos > 0:
                 entries = entries[:max_videos]
                 self._log_user(f"Giới hạn số lượng video tải xuống: {len(entries)} video.")

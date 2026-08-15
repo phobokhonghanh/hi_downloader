@@ -46,13 +46,13 @@ export async function selectSrtFile() {
     return res;
 }
 
-export async function analyzeUrl(url) {
+export async function analyzeUrl(url, cookies_browser) {
     const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             url: url,
-            cookies_browser: null
+            cookies_browser: cookies_browser || null
         })
     });
     return res;

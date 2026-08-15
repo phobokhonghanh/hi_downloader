@@ -76,7 +76,7 @@ class TestDownloaderProxy(unittest.TestCase):
         })
         service = DownloaderService(task_store=self.store, executor=self.executor)
         proxies = service.get_all_proxies()
-        self.assertEqual(proxies, [None])
+        self.assertEqual(proxies, [""])
         self.assertEqual(get_proxy_source_label(self.config_file), "Không dùng proxy")
 
     @patch("modules.common.paths.get_app_dir")
@@ -100,12 +100,12 @@ class TestDownloaderProxy(unittest.TestCase):
 
         # Mode none -> checked, bypasses both
         self.write_config({"proxy_mode": "none"})
-        self.assertEqual(service.get_all_proxies(), [None])
+        self.assertEqual(service.get_all_proxies(), [""])
         self.assertEqual(get_proxy_source_label(self.config_file), "Không dùng proxy")
 
     @patch("modules.common.paths.get_app_dir")
     def test_no_proxy_available_label(self, mock_get_app_dir):
-        """Test 'Không có proxy khả dụng' when unchecked but both files empty or missing."""
+        """Test default OS proxy label when unchecked but both files empty or missing."""
         mock_get_app_dir.return_value = self.config_dir
         self.write_config({
             "proxy_disabled": False,
@@ -116,4 +116,4 @@ class TestDownloaderProxy(unittest.TestCase):
         
         service = DownloaderService(task_store=self.store, executor=self.executor)
         self.assertEqual(service.get_all_proxies(), [None])
-        self.assertEqual(get_proxy_source_label(self.config_file), "Không có proxy khả dụng")
+        self.assertEqual(get_proxy_source_label(self.config_file), "Proxy Mặc định của Hệ Điều Hành")

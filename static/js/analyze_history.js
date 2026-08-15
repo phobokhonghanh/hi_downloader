@@ -169,6 +169,17 @@ export function restoreFromHistory(url) {
 }
 
 export function initAnalyzeHistory() {
+    const browserSelect = document.getElementById('browser-select');
+    if (browserSelect) {
+        const savedBrowser = localStorage.getItem('hi_selected_browser');
+        if (savedBrowser !== null) {
+            browserSelect.value = savedBrowser;
+        }
+        browserSelect.addEventListener('change', (e) => {
+            localStorage.setItem('hi_selected_browser', e.target.value);
+        });
+    }
+
     if (btnAnalyze) {
         btnAnalyze.addEventListener('click', async () => {
             const url = document.getElementById('url').value;
@@ -182,9 +193,15 @@ export function initAnalyzeHistory() {
             analysisBox.style.display = 'none';
 
             try {
+                const bSelect = document.getElementById('browser-select');
+                const selectedBrowser = bSelect ? bSelect.value : null;
+                if (bSelect) {
+                    localStorage.setItem('hi_selected_browser', bSelect.value);
+                }
+
                 setIsAnalyzing(true);
                 triggerLogPolling();
-                const res = await api.analyzeUrl(url);
+                const res = await api.analyzeUrl(url, selectedBrowser);
 
                 if (res.ok) {
                     const data = await res.json();
