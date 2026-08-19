@@ -157,7 +157,15 @@ class TranslateModule(BaseModule):
                     srt_text = f.read()
 
                 segments = parse_srt(srt_text)
-                config = TranslationConfig(target_language=target_lang, model=profile)
+                enable_time_constraint = params.get("enable_time_constraint", True)
+                target_wps = float(params.get("target_wps", 3.8))
+                config = TranslationConfig(
+                    target_language=target_lang,
+                    model=profile,
+                    enable_time_constraint=enable_time_constraint,
+                    target_wps=target_wps
+                )
+
 
                 # Local progress tracker
                 def file_progress_cb(pct, status_msg):

@@ -1,7 +1,32 @@
 import importlib
+import os
+import sys
+import shutil
+import subprocess
+import json
+import tempfile
 from typing import Callable, Optional
 from modules.subtitle.providers.base import SubtitleGenerationConfig, SubtitleProviderResult
 from modules.subtitle.schemas import SubtitleSegment
+
+
+def find_whisper_binary() -> Optional[str]:
+    if getattr(sys, 'frozen', False):
+        base_dir = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+        for exe in ["whisper.exe", "whisper", "main.exe", "main"]:
+            path = os.path.join(base_dir, exe)
+            if os.path.exists(path) and os.path.isfile(path):
+                return path
+
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.abspath(os.path.join(app_dir, "..", "..", ".."))
+    for exe in ["whisper.exe", "whisper", "main.exe", "main"]:
+        for d in [root_dir, os.getcwd()]:
+            path = os.path.join(d, exe)
+            if os.path.exists(path) and os.path.isfile(path):
+                return path
+
+    return shutil.which("whisper.exe") or shutil.which("whisper") or shutil.which("main.exe") or shutil.which("main")
 
 
 class OpenAIWhisperRunner:
@@ -11,24 +36,60 @@ class OpenAIWhisperRunner:
         config: SubtitleGenerationConfig,
         progress_callback: Optional[Callable[[float, str], None]] = None,
     ) -> SubtitleProviderResult:
-        """Dynamically imports the 'whisper' library, loads the requested model,
-        runs transcription, and converts the raw outputs to SubtitleProviderResult.
-        """
-        try:
-            whisper = importlib.import_module("whisper")
-        except ImportError:
-            raise RuntimeError(
-                "OpenAI Whisper package is not installed. Please install 'openai-whisper' to use this provider."
-            )
+        """Runs transcription using bundled Whisper binary or Python module dynamically."""
+        whisper_bin = find_whisper_binary()
+        result = None
 
-        if progress_callback:
-            progress_callback(20.0, "loading model")
-        model = whisper.load_model(config.model)
+        if whisper_bin:
+            if progress_callback:
+                progress_callback(20.0, "Khởi chạy hệ thống Whisper Binary...")
 
-        if progress_callback:
-            progress_callback(40.0, "transcribing")
-        # Call transcribe on the model
-        result = model.transcribe(video_path, language=config.language, task=config.task)
+            with tempfile.TemporaryDirectory() as tmpdir:
+                cmd = [
+                    whisper_bin,
+                    video_path,
+                    "--model", config.model or "base",
+                    "--output_dir", tmpdir,
+                    "--output_format", "json"
+                ]
+                if config.language:
+                    cmd.extend(["--language", config.language])
+                if config.task:
+                    cmd.extend(["--task", config.task])
+
+                if progress_callback:
+                    progress_callback(40.0, "Đang nhận diện giọng nói...")
+
+                res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if res.returncode != 0:
+                    raise RuntimeError(f"Lỗi Whisper Binary: {res.stderr or res.stdout}")
+
+                base_name = os.path.splitext(os.path.basename(video_path))[0]
+                json_path = os.path.join(tmpdir, f"{base_name}.json")
+                if not os.path.exists(json_path):
+                    files = [os.path.join(tmpdir, f) for f in os.listdir(tmpdir) if f.endswith(".json")]
+                    if files:
+                        json_path = files[0]
+                    else:
+                        raise RuntimeError("Không tìm thấy kết quả phụ đề JSON từ Whisper.")
+
+                with open(json_path, "r", encoding="utf-8") as f:
+                    result = json.load(f)
+        else:
+            try:
+                whisper_module = importlib.import_module("whisper")
+            except ImportError:
+                raise RuntimeError(
+                    "Gói OpenAI Whisper chưa được cài đặt. Vui lòng đảm bảo file whisper.exe được đóng gói kèm ứng dụng."
+                )
+
+            if progress_callback:
+                progress_callback(20.0, "loading model")
+            model = whisper_module.load_model(config.model or "base")
+
+            if progress_callback:
+                progress_callback(40.0, "transcribing")
+            result = model.transcribe(video_path, language=config.language, task=config.task)
 
         if progress_callback:
             progress_callback(90.0, "formatting")

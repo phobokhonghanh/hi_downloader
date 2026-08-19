@@ -10,6 +10,10 @@ class SubtitleSegment:
     text: str
     source: str = "manual"
     confidence: Optional[float] = None
+    asr_corrected: Optional[bool] = False
+    corrected_source: Optional[str] = None
+    correction_note: Optional[str] = None
+    original_translation: Optional[str] = None
 
     @property
     def duration_ms(self) -> int:
@@ -33,6 +37,10 @@ class SubtitleSegment:
             "text": self.text,
             "source": self.source,
             "confidence": self.confidence,
+            "asr_corrected": self.asr_corrected,
+            "corrected_source": self.corrected_source,
+            "correction_note": self.correction_note,
+            "original_translation": self.original_translation,
         }
 
     @classmethod
@@ -45,6 +53,10 @@ class SubtitleSegment:
             text=data["text"],
             source=data.get("source", "manual"),
             confidence=data.get("confidence"),
+            asr_corrected=data.get("asr_corrected", False),
+            corrected_source=data.get("corrected_source"),
+            correction_note=data.get("correction_note"),
+            original_translation=data.get("original_translation"),
         )
 
     def validate(self) -> List[str]:

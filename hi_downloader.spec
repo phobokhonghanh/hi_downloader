@@ -1,10 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 
+import os
+
+binaries_list = []
+for b in ['ffmpeg.exe', 'ffmpeg', 'ffprobe.exe', 'ffprobe', 'whisper.exe', 'whisper', 'main.exe', 'main']:
+    if os.path.exists(b):
+        binaries_list.append((b, '.'))
+
 a = Analysis(
     ['run_app.py'],
     pathex=[],
-    binaries=[('ffmpeg', '.'), ('ffprobe', '.')],
+    binaries=binaries_list,
     datas=[('static', 'static')],
     hiddenimports=['tkinter', 'tkinter.filedialog', 'webview'],
     hookspath=['pyinstaller_hooks'],

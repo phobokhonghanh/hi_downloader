@@ -63,6 +63,10 @@ class TranslationConfig:
     style_guide: Optional[str] = None
     context: Optional[str] = None
     chunk_config: ChunkConfig = field(default_factory=ChunkConfig)
+    enable_time_constraint: bool = True
+    target_wps: float = 4.2
+    target_cps: float = 16.0
+
 
 
 @dataclass(frozen=True)

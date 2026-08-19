@@ -30,6 +30,9 @@ class CreateBatchRequest(BaseModel):
     target_language: str = Field(..., description="Target translation language")
     profile: str = Field("balanced", description="Quality profile mapping")
     concurrency: int = Field(2, description="Parallel processing limit")
+    enable_time_constraint: bool = Field(True, description="Enable duration text limit constraint for TTS")
+    target_wps: float = Field(4.2, description="Target speaking rate in words per second")
+
 
 
 class BatchActionRequest(BaseModel):
@@ -189,7 +192,9 @@ def create_translate_router(
                 files=req.files,
                 target_language=req.target_language,
                 profile=req.profile,
-                concurrency=req.concurrency
+                concurrency=req.concurrency,
+                enable_time_constraint=req.enable_time_constraint,
+                target_wps=req.target_wps
             )
             batch_service.start_batch(batch_id)
             return {"batch_id": batch_id, "status": "running"}

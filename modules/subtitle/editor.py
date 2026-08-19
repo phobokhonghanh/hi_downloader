@@ -146,3 +146,22 @@ class SubtitleEditor:
                 return
 
         raise ValueError(f"Segment with index {index} not found")
+
+    def calculate_segment_budget(self, index: int, target_wps: float = 3.8) -> dict:
+        """Calculates speaking rate budget and checks for duration overflow for a segment by index."""
+        from modules.translate.condenser import check_segment_duration_overflow
+        for seg in self.segments:
+            if seg.index == index:
+                return check_segment_duration_overflow(seg, target_wps=target_wps)
+        raise ValueError(f"Segment with index {index} not found")
+
+    def find_overflow_segments(self, target_wps: float = 3.8) -> List[dict]:
+        """Finds all subtitle segments whose word count exceeds their timeline duration budget."""
+        from modules.translate.condenser import check_segment_duration_overflow
+        overflows = []
+        for seg in self.segments:
+            res = check_segment_duration_overflow(seg, target_wps=target_wps)
+            if res["is_overflow"]:
+                overflows.append(res)
+        return overflows
+

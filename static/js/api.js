@@ -240,7 +240,7 @@ export async function scanTranslateFolder(path) {
     return res;
 }
 
-export async function createTranslateBatch(files, targetLanguage, profile, concurrency) {
+export async function createTranslateBatch(files, targetLanguage, profile, concurrency, enableTimeConstraint = true, targetWps = 4.2) {
     const res = await fetch('/api/translate/batches', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -248,7 +248,9 @@ export async function createTranslateBatch(files, targetLanguage, profile, concu
             files: files,
             target_language: targetLanguage,
             profile: profile,
-            concurrency: concurrency
+            concurrency: concurrency,
+            enable_time_constraint: enableTimeConstraint,
+            target_wps: targetWps
         })
     });
     return res;

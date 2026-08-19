@@ -107,6 +107,10 @@ class TestSubtitleSchemas(unittest.TestCase):
             "text": "Python is awesome",
             "source": "manual",
             "confidence": 0.88,
+            "asr_corrected": False,
+            "corrected_source": None,
+            "correction_note": None,
+            "original_translation": None,
         }
         self.assertEqual(d, expected)
 

@@ -131,9 +131,21 @@ export async function initTranslate() {
             const targetLang = selectLanguage.value;
             const profile = selectProfile.value;
             const concurrency = parseInt(selectConcurrency.value, 10);
+            const chkTimeConstraint = document.getElementById('translate-time-constraint');
+            const txtTargetWps = document.getElementById('translate-target-wps');
+
+            const enableTimeConstraint = chkTimeConstraint ? chkTimeConstraint.checked : true;
+            const targetWps = txtTargetWps ? (parseFloat(txtTargetWps.value) || 4.2) : 4.2;
 
             try {
-                const res = await api.createTranslateBatch(activeSourceFiles, targetLang, profile, concurrency);
+                const res = await api.createTranslateBatch(
+                    activeSourceFiles,
+                    targetLang,
+                    profile,
+                    concurrency,
+                    enableTimeConstraint,
+                    targetWps
+                );
                 if (res.ok) {
                     const data = await res.json();
                     startQueuePolling(data.batch_id);

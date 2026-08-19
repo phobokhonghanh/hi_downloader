@@ -53,7 +53,7 @@ jobs:
           python -m pip install --disable-pip-version-check --no-cache-dir --upgrade pip setuptools wheel
           python -m pip install --disable-pip-version-check --no-cache-dir pyinstaller -r requirements.txt
 
-      - name: Copy FFmpeg & FFprobe (Windows)
+      - name: Copy FFmpeg, FFprobe & Whisper (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -72,7 +72,20 @@ jobs:
             Remove-Item "ffmpeg.zip", "ffprobe.zip"
           }
 
-      - name: Copy FFmpeg & FFprobe (macOS)
+          $whisper = Get-Command whisper -ErrorAction SilentlyContinue
+          if ($whisper) {
+            Copy-Item $whisper.Source .\whisper.exe
+            Write-Host "Copied Whisper from system PATH."
+          } else {
+            Write-Host "Whisper not found in PATH. Installing CLI..."
+            pip install openai-whisper
+            $whisper = Get-Command whisper -ErrorAction SilentlyContinue
+            if ($whisper) {
+              Copy-Item $whisper.Source .\whisper.exe
+            }
+          }
+
+      - name: Copy FFmpeg, FFprobe & Whisper (macOS)
         if: runner.os != 'Windows'
         run: |
           if command -v ffmpeg >/dev/null 2>&1 && command -v ffprobe >/dev/null 2>&1; then
@@ -96,31 +109,42 @@ jobs:
             chmod +x ffmpeg ffprobe
           fi
 
+          if command -v whisper >/dev/null 2>&1; then
+            cp $(which whisper) ./whisper
+            chmod +x ./whisper
+          fi
+
       - name: Package with PyInstaller (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          $addBinaries = @("--add-binary", "ffmpeg.exe;.", "--add-binary", "ffprobe.exe;.")
+          if (Test-Path ".\whisper.exe") {
+            $addBinaries += @("--add-binary", "whisper.exe;.")
+          }
           pyinstaller `
             --noconfirm `
             --onefile `
             --additional-hooks-dir "pyinstaller_hooks" `
             --name "hi_downloader_${{ env.VERSION }}" `
             --add-data "static;static" `
-            --add-binary "ffmpeg.exe;." `
-            --add-binary "ffprobe.exe;." `
+            $addBinaries `
             run_app.py
 
       - name: Package with PyInstaller (macOS)
         if: runner.os != 'Windows'
         run: |
+          ADD_BIN="--add-binary ffmpeg:. --add-binary ffprobe:."
+          if [ -f "./whisper" ]; then
+            ADD_BIN="$ADD_BIN --add-binary whisper:."
+          fi
           pyinstaller \
             --noconfirm \
             --onefile \
             --additional-hooks-dir "pyinstaller_hooks" \
             --name "hi_downloader_macOS_${{ env.VERSION }}" \
             --add-data "static:static" \
-            --add-binary "ffmpeg:." \
-            --add-binary "ffprobe:." \
+            $ADD_BIN \
             run_app.py
           cd dist
           zip -r "hi_downloader_macOS_${{ env.VERSION }}.zip" "hi_downloader_macOS_${{ env.VERSION }}"

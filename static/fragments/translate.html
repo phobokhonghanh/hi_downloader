@@ -88,6 +88,20 @@
         </div>
     </div>
 
+    <!-- DURATION CONSTRAINT CONFIG -->
+    <div class="form-group" style="margin-top: 12px; margin-bottom: 0;">
+        <label style="display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; font-size: 0.78rem;">
+            <input type="checkbox" id="translate-time-constraint" checked style="cursor: pointer;">
+            Rút gọn & giới hạn thoại theo thời gian timeline (TTS Constraint)
+        </label>
+        <div id="container-translate-wps" style="display: flex; align-items: center; gap: 8px; margin-top: 6px; margin-left: 22px; font-size: 0.72rem; color: var(--text-muted);">
+            <span>Tốc độ nói mục tiêu:</span>
+            <input type="number" id="translate-target-wps" value="4.2" step="0.1" min="2.0" max="6.0" style="width: 65px; padding: 3px 6px; font-size: 0.75rem;">
+            <span>từ/giây (Mặc định: 4.2 từ/s)</span>
+        </div>
+    </div>
+
+
     <div style="display: flex; gap: 10px; margin-top: 20px;">
         <button type="button" class="btn btn-solid-blue" id="btn-translate-start" disabled style="flex: 1; padding: 10px 16px; font-weight: 700; font-size: 0.82rem;">Tạo bản dịch</button>
     </div>
@@ -138,6 +152,22 @@
             <div><strong>Ngôn ngữ nguồn:</strong> <span id="trans-meta-source">—</span></div>
             <div><strong>Ngôn ngữ đích:</strong> <span id="trans-meta-target">—</span></div>
             <div><strong>Tổng số dòng:</strong> <span id="trans-meta-total">—</span></div>
+        </div>
+
+        <!-- FILTER BAR FOR QUICK REVIEW -->
+        <div id="translate-modal-filter-bar" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-size: 0.75rem; background: #ffffff; padding: 4px 8px; border-radius: var(--border-radius);">
+            <div style="display: flex; gap: 8px; align-items: center;" id="translate-filter-btn-group">
+                <span style="font-weight: 600; color: var(--text-muted);">Lọc dòng:</span>
+                <button type="button" class="btn btn-solid-blue filter-btn active" data-filter="all" style="padding: 3px 10px; font-size: 0.72rem;">
+                    Tất cả (<span id="filter-count-all">0</span>)
+                </button>
+                <button type="button" class="btn btn-outline-blue filter-btn" data-filter="asr" style="padding: 3px 10px; font-size: 0.72rem;">
+                    Chỉnh sửa (<span id="filter-count-asr">0</span>)
+                </button>
+                <button type="button" class="btn btn-outline-blue filter-btn" data-filter="overtime" style="padding: 3px 10px; font-size: 0.72rem;">
+                    Rút gọn (<span id="filter-count-overtime">0</span>)
+                </button>
+            </div>
         </div>
 
         <div style="flex: 1; border: 1px solid var(--panel-border); border-radius: var(--border-radius); overflow-y: auto; min-height: 0; position: relative; background: #ffffff;">

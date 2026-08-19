@@ -113,7 +113,15 @@ class TranslateBatchService:
         with self.lock:
             self.dispatcher_threads.clear()
 
-    def create_batch(self, files: List[str], target_language: str, profile: str, concurrency: int = 2) -> str:
+    def create_batch(
+        self,
+        files: List[str],
+        target_language: str,
+        profile: str,
+        concurrency: int = 2,
+        enable_time_constraint: bool = True,
+        target_wps: float = 3.8
+    ) -> str:
         """
         Create a new translation batch after validating the paths.
         """
@@ -183,12 +191,15 @@ class TranslateBatchService:
             "concurrency": concurrency,
             "target_language": target_language,
             "profile": profile,
+            "enable_time_constraint": enable_time_constraint,
+            "target_wps": target_wps,
             "created_at": self.clock.time(),
             "start_time": None,
             "settle_time": None,
             "jobs": jobs,
             "cancel_event": threading.Event()
         }
+
 
         with self.lock:
             self.batches[batch_id] = batch
@@ -274,6 +285,8 @@ class TranslateBatchService:
                     target_language = batch["target_language"]
                     profile = batch["profile"]
                     source_path = job["source_path"]
+                    enable_time_constraint = batch.get("enable_time_constraint", True)
+                    target_wps = batch.get("target_wps", 3.8)
 
         if not job_found_and_running:
             job_done_callback()
@@ -304,7 +317,13 @@ class TranslateBatchService:
             from modules.subtitle.srt import parse_srt, export_srt
             segments = parse_srt(srt_text)
 
-            config = TranslationConfig(target_language=target_language, model=profile)
+            config = TranslationConfig(
+                target_language=target_language,
+                model=profile,
+                enable_time_constraint=enable_time_constraint,
+                target_wps=target_wps
+            )
+
 
             # Thread-safe updates callback
             def progress_cb(pct, status_msg):
@@ -353,6 +372,7 @@ class TranslateBatchService:
                 job["phase"] = "Hoàn tất"
                 job["progress"] = 100.0
                 job["saved_path"] = os.path.abspath(out_path)
+                job["result_segments"] = [seg.to_dict() for seg in res.translated_segments]
                 job["restored_chunks"] = res.metrics.get("restored_chunks", 0)
                 job["translated_chunks"] = res.metrics.get("translated_chunks", 0)
                 job["input_tokens"] = provider.last_token_usage.get("input_tokens", 0)
@@ -632,7 +652,12 @@ class TranslateBatchService:
         trans_segs = parse_srt(trans_text)
 
         trans_map = {t.index: t for t in trans_segs}
-        
+        res_map = {}
+        if "result_segments" in job and job["result_segments"]:
+            res_map = {r["index"]: r for r in job["result_segments"]}
+
+        from modules.translate.condenser import calculate_segment_word_budget, count_words
+
         aligned = []
         for s in src_segs:
             t = trans_map.get(s.index)
@@ -641,12 +666,24 @@ class TranslateBatchService:
             if s.start_ms != t.start_ms or s.end_ms != t.end_ms:
                 raise ValueError(f"Timestamps không khớp ở chỉ mục {s.index}.")
             
+            res_item = res_map.get(s.index, {})
+            duration_s = max(0.1, (s.end_ms - s.start_ms) / 1000.0)
+            budget = calculate_segment_word_budget(s.start_ms, s.end_ms, target_wps=4.2)
+            src_words = count_words(s.text)
+            is_overtime = (src_words > budget) or (src_words / duration_s > 3.5)
+
             aligned.append({
                 "index": s.index,
                 "start_ms": s.start_ms,
                 "end_ms": s.end_ms,
                 "source_text": s.text,
-                "translated_text": t.text
+                "translated_text": t.text,
+                "asr_corrected": res_item.get("asr_corrected", False),
+                "corrected_source": res_item.get("corrected_source"),
+                "correction_note": res_item.get("correction_note"),
+                "original_translation": res_item.get("original_translation"),
+                "is_overtime": is_overtime,
+                "max_words": budget
             })
 
         return {
