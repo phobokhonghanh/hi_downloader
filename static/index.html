@@ -6,7 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hi Downloader</title>
 
-    <link rel="stylesheet" href="/static/css/style.css?v=1">
+    <link rel="stylesheet" href="/static/css/style.css?v=6">
+
+
+
+
 </head>
 
 <body>
@@ -37,6 +41,12 @@
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                     </svg>
                     Dịch phụ đề
+                </button>
+                <button type="button" class="sidebar-nav-button" id="btn-mode-workflow">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 10px; min-width: 16px;">
+                        <circle cx="5" cy="6" r="2"></circle><circle cx="19" cy="12" r="2"></circle><circle cx="5" cy="18" r="2"></circle><path d="M7 6h5a5 5 0 0 1 5 5"></path><path d="M7 18h5a5 5 0 0 0 5-5"></path>
+                    </svg>
+                    Workflow
                 </button>
             </nav>
             <div class="sidebar-footer" style="margin-top: auto; padding: 15px; border-top: 1px solid var(--panel-border);">
@@ -78,6 +88,8 @@
 
             <!-- TRANSLATE GRID CONTENT -->
             <div class="app-grid" id="translate-view" style="display: none;"></div>
+
+            <div class="app-grid workflow-grid" id="workflow-view" style="display: none;"></div>
 
             <!-- BOTTOM PANEL: LIVE CONSOLE LOG (SHARED SYSTEM LOG FOOTER) -->
             <div class="terminal-panel" id="shared-terminal-panel" style="position: relative; margin-top: 15px;">
@@ -158,6 +170,10 @@
         </div>
     </div>
 
-    <script type="module" src="/static/js/bootstrap.js?v=2"></script>
+    <script type="module" src="/static/js/bootstrap.js?v=6"></script>
+
+
+
+
 </body>
 </html>

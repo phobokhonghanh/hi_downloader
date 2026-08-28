@@ -12,11 +12,16 @@ if (btnStartupRetry) {
 
 (async () => {
     try {
+        const version = '6';
+
+
+
         // 1. Fetch fragments in parallel
-        const [resDownloader, resSubtitle, resTranslate] = await Promise.all([
-            fetch('/static/fragments/downloader.html'),
-            fetch('/static/fragments/subtitle.html'),
-            fetch('/static/fragments/translate.html')
+        const [resDownloader, resSubtitle, resTranslate, resWorkflow] = await Promise.all([
+            fetch(`/static/fragments/downloader.html?v=${version}`),
+            fetch(`/static/fragments/subtitle.html?v=${version}`),
+            fetch(`/static/fragments/translate.html?v=${version}`),
+            fetch(`/static/fragments/workflow.html?v=${version}`)
         ]);
 
         if (!resDownloader.ok) {
@@ -28,22 +33,27 @@ if (btnStartupRetry) {
         if (!resTranslate.ok) {
             throw new Error(`Không thể tải translate.html (Mã phản hồi: ${resTranslate.status})`);
         }
+        if (!resWorkflow.ok) {
+            throw new Error(`Không thể tải workflow.html (Mã phản hồi: ${resWorkflow.status})`);
+        }
 
         const downloaderHtml = await resDownloader.text();
         const subtitleHtml = await resSubtitle.text();
         const translateHtml = await resTranslate.text();
+        const workflowHtml = await resWorkflow.text();
 
         // 2. Mount fragments into DOM tree
         const downloaderView = document.getElementById('downloader-view');
         const subtitleView = document.getElementById('subtitle-view');
         const translateView = document.getElementById('translate-view');
+        const workflowView = document.getElementById('workflow-view');
 
         if (downloaderView) downloaderView.innerHTML = downloaderHtml;
         if (subtitleView) subtitleView.innerHTML = subtitleHtml;
         if (translateView) translateView.innerHTML = translateHtml;
+        if (workflowView) workflowView.innerHTML = workflowHtml;
 
         // 3. Dynamically import modules after DOM is ready to prevent top-level query selector failures
-        const version = '2';
         const { state } = await import(`./state.js?v=${version}`);
         const api = await import(`./api.js?v=${version}`);
         const { initSelectors, checkSystem } = await import(`./path_selectors.js?v=${version}`);
@@ -53,8 +63,10 @@ if (btnStartupRetry) {
         const { initLogs, updateLogsUI } = await import(`./logs.js?v=${version}`);
         const { initSubtitle } = await import(`./subtitle.js?v=${version}`);
         const { initTranslate } = await import(`./translate.js?v=${version}`);
+        const { initWorkflow } = await import(`./workflow.js?v=${version}`);
         const { initSettings } = await import(`./settings.js?v=${version}`);
         const { triggerTaskPolling, triggerLogPolling } = await import(`./polling.js?v=${version}`);
+
 
         // 4. Initialize elements and listeners
         initSelectors();
@@ -67,41 +79,54 @@ if (btnStartupRetry) {
 
         initSubtitle();
         initTranslate();
+        initWorkflow();
         initSettings();
 
         // 5. Connect sidebar navigation
         const btnModeDownload = document.getElementById('btn-mode-download');
         const btnModeSubtitle = document.getElementById('btn-mode-subtitle');
         const btnModeTranslate = document.getElementById('btn-mode-translate');
+        const btnModeWorkflow = document.getElementById('btn-mode-workflow');
 
-        if (btnModeDownload && btnModeSubtitle && btnModeTranslate && downloaderView && subtitleView && translateView) {
+        if (btnModeDownload && btnModeSubtitle && btnModeTranslate && btnModeWorkflow && downloaderView && subtitleView && translateView && workflowView) {
+            const buttons = [btnModeDownload, btnModeSubtitle, btnModeTranslate, btnModeWorkflow];
+            const activateButton = (activeBtn) => {
+                buttons.forEach(btn => btn.classList.toggle('active', btn === activeBtn));
+            };
+
             btnModeDownload.addEventListener('click', () => {
-                btnModeDownload.classList.add('active');
-                btnModeSubtitle.classList.remove('active');
-                btnModeTranslate.classList.remove('active');
+                activateButton(btnModeDownload);
                 downloaderView.style.display = 'grid';
                 subtitleView.style.display = 'none';
                 translateView.style.display = 'none';
+                workflowView.style.display = 'none';
             });
 
             btnModeSubtitle.addEventListener('click', () => {
-                btnModeSubtitle.classList.add('active');
-                btnModeDownload.classList.remove('active');
-                btnModeTranslate.classList.remove('active');
+                activateButton(btnModeSubtitle);
                 downloaderView.style.display = 'none';
                 subtitleView.style.display = 'grid';
                 translateView.style.display = 'none';
+                workflowView.style.display = 'none';
             });
 
             btnModeTranslate.addEventListener('click', () => {
-                btnModeTranslate.classList.add('active');
-                btnModeDownload.classList.remove('active');
-                btnModeSubtitle.classList.remove('active');
+                activateButton(btnModeTranslate);
                 downloaderView.style.display = 'none';
                 subtitleView.style.display = 'none';
                 translateView.style.display = 'grid';
+                workflowView.style.display = 'none';
+            });
+
+            btnModeWorkflow.addEventListener('click', () => {
+                activateButton(btnModeWorkflow);
+                downloaderView.style.display = 'none';
+                subtitleView.style.display = 'none';
+                translateView.style.display = 'none';
+                workflowView.style.display = 'grid';
             });
         }
+
 
         // Connect analysis final logs update callback
         registerFinalLogsUpdate(async () => {

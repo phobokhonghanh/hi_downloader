@@ -1,0 +1,145 @@
+<section class="workflow-composer panel">
+  <header class="workflow-top-header">
+    <div>
+      <h2>Tạo workflow</h2>
+      <p class="workflow-kicker">Một video · Tạo phụ đề · Dịch tự động</p>
+    </div>
+    <div class="workflow-source-switch" role="group" aria-label="Nguồn video">
+      <button type="button" class="btn btn-outline-blue active" data-workflow-source="url">URL video</button>
+      <button type="button" class="btn btn-outline-blue" data-workflow-source="file">File cục bộ</button>
+    </div>
+  </header>
+
+  <div class="workflow-source-card">
+    <div id="workflow-url-source" class="workflow-source">
+      <label for="workflow-url">URL video nguồn (Bilibili)</label>
+      <input id="workflow-url" type="url" placeholder="https://www.bilibili.com/video/BV...">
+      <div class="workflow-save-group">
+        <label class="workflow-path-label">Lưu:</label>
+        <div class="workflow-input-group">
+          <input type="text" id="workflow-output-dir" readonly placeholder="Chọn thư mục..." title="">
+          <button type="button" class="btn-folder-select" id="btn-workflow-select-dir" title="Chọn thư mục từ hệ thống" aria-label="Chọn thư mục từ hệ thống">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+
+    </div>
+    
+    <div id="workflow-file-source" class="workflow-source" hidden>
+      <label>Video nguồn cục bộ</label>
+      <div class="workflow-path-row">
+        <span id="workflow-video-label" class="workflow-video-label">Chưa chọn video</span>
+        <button type="button" class="btn btn-outline-blue" id="btn-workflow-select-video">Chọn video</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="workflow-pipeline-head">
+    <div>
+      <h3>Các bước xử lý</h3>
+      <p class="workflow-pipeline-sub">Cấu hình được giữ riêng cho từng task</p>
+    </div>
+    <span class="workflow-step-count" id="workflow-step-count">2 bước</span>
+  </div>
+
+  <div class="workflow-pipeline">
+    <article class="workflow-module">
+      <header class="workflow-module-head">
+        <span class="workflow-step-number">1</span>
+        <div>
+          <h3>Tạo phụ đề</h3>
+          <p class="workflow-module-sub">Whisper · bắt buộc</p>
+        </div>
+        <span class="workflow-module-state">Đã cấu hình</span>
+      </header>
+      <div class="workflow-module-body">
+        <label>
+          <span>Mô hình Whisper</span>
+          <select id="workflow-whisper-model">
+            <option value="tiny">tiny</option>
+            <option value="base" selected>base</option>
+            <option value="small">small</option>
+            <option value="medium">medium</option>
+            <option value="large">large</option>
+            <option value="large-v3">large-v3</option>
+            <option value="large-v3-turbo">large-v3-turbo</option>
+          </select>
+        </label>
+        <label>
+          <span>Ngôn ngữ nguồn</span>
+          <select id="workflow-whisper-language">
+            <option value="" selected>Tự động nhận dạng</option>
+            <option value="vi">Tiếng Việt</option>
+            <option value="en">Tiếng Anh</option>
+            <option value="zh">Tiếng Trung</option>
+            <option value="ja">Tiếng Nhật</option>
+            <option value="ko">Tiếng Hàn</option>
+          </select>
+        </label>
+      </div>
+    </article>
+
+    <article class="workflow-module workflow-optional">
+      <header class="workflow-module-head">
+        <span class="workflow-step-number">2</span>
+        <div>
+          <h3>Dịch phụ đề</h3>
+          <p class="workflow-module-sub">Gemini · tùy chọn</p>
+
+        </div>
+        <button type="button" class="workflow-toggle-btn" id="workflow-translate-enabled" aria-pressed="true" aria-label="Bật hoặc tắt dịch phụ đề"></button>
+      </header>
+      <div class="workflow-module-body" id="workflow-translate-options">
+        <label>
+          <span>Ngôn ngữ đích</span>
+          <select id="workflow-target-language">
+            <option value="vi" selected>Tiếng Việt</option>
+            <option value="en">Tiếng Anh</option>
+            <option value="zh">Tiếng Trung</option>
+            <option value="ja">Tiếng Nhật</option>
+            <option value="ko">Tiếng Hàn</option>
+            <option value="es">Tiếng Tây Ban Nha</option>
+            <option value="fr">Tiếng Pháp</option>
+            <option value="de">Tiếng Đức</option>
+            <option value="th">Tiếng Thái</option>
+            <option value="id">Tiếng Indonesia</option>
+          </select>
+        </label>
+        <label>
+          <span>Cấu hình dịch</span>
+          <select id="workflow-translate-profile">
+            <!-- Dynamic options -->
+          </select>
+        </label>
+        <label>
+          <span>Tốc độ đọc mục tiêu</span>
+          <input type="number" id="workflow-translate-target-wps" value="4.2" step="0.1" min="2.0" max="6.0">
+        </label>
+        <label class="workflow-compact-check">
+          <input type="checkbox" id="workflow-translate-time-constraint" checked>
+          <span>Giới hạn theo thời lượng</span>
+        </label>
+      </div>
+    </article>
+  </div>
+
+  <footer class="workflow-footer">
+    <div class="workflow-footer-left">
+      <div class="workflow-check-status" id="workflow-summary">✓ Cấu hình hợp lệ · Sẽ tạo 2 file SRT</div>
+      <p class="workflow-validation" id="workflow-validation" aria-live="polite"></p>
+    </div>
+    <button type="button" class="btn btn-solid-blue workflow-run-btn" id="btn-workflow-run">Thêm vào hàng đợi</button>
+    <p class="workflow-hint">Hủy, retry và quản lý task nằm trong hàng đợi bên phải, không trộn vào phần cấu hình.</p>
+  </footer>
+</section>
+<section class="workflow-monitor panel">
+  <div class="panel-header">
+    <span>HÀNG ĐỢI WORKFLOW</span>
+  </div>
+  <div id="workflow-queue"></div>
+</section>

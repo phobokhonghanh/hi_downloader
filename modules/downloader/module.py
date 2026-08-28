@@ -76,6 +76,16 @@ class DownloaderModule(BaseModule):
                     metrics={"analysis": res}
                 )
             elif action == "download":
+                if context.cancel_event.is_set():
+                    return ModuleResult(success=False, canceled=True, error="Canceled before download")
+                if context.task_id.startswith("wf_"):
+                    if not context.output_dir:
+                        return ModuleResult(success=False, error="Thiếu thư mục lưu video.")
+                    output_file = self.service.download_for_workflow(
+                        url, params.get("cookies_browser"), params.get("quality", "best"),
+                        context.output_dir, context.cancel_event, context.progress_callback,
+                    )
+                    return ModuleResult(success=True, output_files=[output_file])
                 req_data = DownloadRequestData(
                     url=url,
                     cookies_browser=params.get("cookies_browser"),

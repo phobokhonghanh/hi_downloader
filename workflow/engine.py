@@ -6,10 +6,11 @@ from workflow.schemas import WorkflowConfig, WorkflowResult
 
 
 class WorkflowEngine:
-    def __init__(self, task_store: Optional[TaskStore] = None, module_registry: Optional[Any] = None):
+    def __init__(self, task_store: Optional[TaskStore] = None, module_registry: Optional[Any] = None, logger=None):
         self.task_store = task_store
         self.module_registry = module_registry
         self.modules: Dict[str, BaseModule] = {}
+        self.logger = logger
 
     def register_module(self, module: BaseModule):
         self.modules[module.module_id] = module
@@ -103,8 +104,15 @@ class WorkflowEngine:
                 input_files=current_inputs,
                 output_dir=config.output_dir,
                 params=step_cfg.params,
-                cancel_event=cancel_event
+                cancel_event=cancel_event,
+                progress_callback=self._make_progress_callback(
+                    workflow_task_id, step_index, total_steps, step_cfg.step_id
+                ),
+                logger=self.logger,
             )
+
+            if self.logger:
+                self.logger(f"Workflow {workflow_task_id}: bắt đầu bước {step_index + 1}/{total_steps} ({step_cfg.step_id}).")
 
             result = module.run(context)
             step_results[step_cfg.step_id] = result
@@ -135,6 +143,9 @@ class WorkflowEngine:
                         error=err
                     )
 
+            if self.logger:
+                self.logger(f"Workflow {workflow_task_id}: hoàn tất bước {step_index + 1}/{total_steps} ({step_cfg.step_id}).")
+
             # Data piping: pass output of previous step as input to next step
             current_inputs = list(result.output_files)
 
@@ -153,3 +164,18 @@ class WorkflowEngine:
             step_results=step_results,
             final_outputs=current_inputs
         )
+
+    def _make_progress_callback(self, task_id: str, step_index: int, total_steps: int, step_id: str):
+        def report(step_progress: float, phase: str = ""):
+            if not self.task_store:
+                return
+            bounded = max(0.0, min(100.0, float(step_progress)))
+            progress = round(((step_index + bounded / 100.0) / total_steps) * 100.0, 1)
+            label = f"Step {step_index + 1}/{total_steps}: {step_id}"
+            self.task_store.update_task(
+                task_id,
+                status=TaskStatus.PROCESSING,
+                progress=progress,
+                filename=f"{label} - {phase}" if phase else label,
+            )
+        return report

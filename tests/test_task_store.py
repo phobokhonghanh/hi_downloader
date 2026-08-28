@@ -1,7 +1,7 @@
 import unittest
 import threading
 import time
-from core.task_store import TaskStore, TaskStatus
+from core.task_store import TaskStore, TaskStatus, TaskConflictError
 
 
 class TestTaskStore(unittest.TestCase):
@@ -91,12 +91,47 @@ class TestTaskStore(unittest.TestCase):
         self.store.update_task("t_metrics", metrics={"updated_metric": 100})
         refetched = self.store.get_task("t_metrics")
         self.assertEqual(refetched["metrics"], {"updated_metric": 100})
+
+    def test_task_workflow_config_persistence(self):
+        config_data = {"name": "Test Workflow", "steps": []}
+        self.store.create_task(task_id="t_wf_config", workflow_config=config_data)
+        fetched = self.store.get_task("t_wf_config")
+        self.assertEqual(fetched["workflow_config"], config_data)
+
+        # Defensive copy check
+        config_data["name"] = "Mutated name"
+
+        refetched = self.store.get_task("t_wf_config")
+        self.assertEqual(refetched["workflow_config"]["name"], "Test Workflow")
+
     def test_clear_idle_tasks(self):
         self.store.create_task(task_id="t1", status=TaskStatus.COMPLETED)
         self.store.create_task(task_id="t2", status=TaskStatus.FAILED)
         cleared = self.store.clear_idle_tasks()
         self.assertEqual(cleared, 2)
         self.assertEqual(len(self.store.get_all_tasks()), 0)
+
+    def test_create_task_conflict_rejection(self):
+        # Create a task with a source_key in pending status
+        self.store.create_task(task_id="w1", module_id="workflow", source_key="video_key_1", status=TaskStatus.PENDING)
+        
+        # Creating another task with the same source_key should raise TaskConflictError
+        with self.assertRaises(TaskConflictError):
+            self.store.create_task(task_id="w2", module_id="workflow", source_key="video_key_1")
+            
+        # Update the task status to processing
+        self.store.update_task("w1", status=TaskStatus.PROCESSING)
+        
+        # Still conflicting
+        with self.assertRaises(TaskConflictError):
+            self.store.create_task(task_id="w3", module_id="workflow", source_key="video_key_1")
+            
+        # Completed task should not conflict
+        self.store.update_task("w1", status=TaskStatus.COMPLETED)
+        t_snap = self.store.create_task(task_id="w4", module_id="workflow", source_key="video_key_1")
+        self.assertEqual(t_snap["id"], "w4")
+
+
 
 
 if __name__ == "__main__":

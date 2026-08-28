@@ -1,3 +1,5 @@
+import os
+import tempfile
 from typing import Dict, Any
 from core.base_module import BaseModule, ModuleContext, ModuleResult, ModuleMetadata
 from modules.subtitle.schemas import SubtitleSegment
@@ -137,7 +139,10 @@ class SubtitleModule(BaseModule):
 
         elif action == "generate_whisper":
             video_path = params.get("video_path")
-            if video_path is None or not isinstance(video_path, str) or not video_path.strip():
+            use_input_file = params.get("use_input_file", False)
+            if video_path is None and not use_input_file:
+                return False
+            if video_path is not None and (not isinstance(video_path, str) or not video_path.strip()):
                 return False
 
             model = params.get("model")
@@ -185,7 +190,9 @@ class SubtitleModule(BaseModule):
                 return ModuleResult(success=True, metrics={"srt_text": srt_text})
 
             elif action == "generate_whisper":
-                video_path = params["video_path"]
+                video_path = params.get("video_path") or (context.input_files[0] if params.get("use_input_file") and context.input_files else None)
+                if not video_path:
+                    return ModuleResult(success=False, error="Không có file video đầu vào.")
                 model_val = params.get("model", "base")
                 task_val = params.get("task", "transcribe")
                 language_val = params.get("language")
@@ -210,12 +217,28 @@ class SubtitleModule(BaseModule):
                 if context.cancel_event.is_set():
                     return ModuleResult(success=False, canceled=True, error="Canceled after Whisper execution")
 
+                video_abs_path = os.path.abspath(video_path)
+                video_dir = os.path.dirname(video_abs_path)
+                video_stem = os.path.splitext(os.path.basename(video_abs_path))[0]
+                output_path = os.path.join(video_dir, f"{video_stem}_generated.srt")
+                srt_text = export_srt(result.segments)
+                fd, temp_path = tempfile.mkstemp(dir=video_dir, prefix=".tmp_subtitle_", suffix=".srt")
+                try:
+                    with os.fdopen(fd, "w", encoding="utf-8") as output_file:
+                        output_file.write(srt_text)
+                    os.replace(temp_path, output_path)
+                except Exception:
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                    raise
+
                 return ModuleResult(
                     success=True,
+                    output_files=[output_path],
                     metrics={
                         "segments": [s.to_dict() for s in result.segments],
                         "metadata": result.metadata,
-                        "srt_text": export_srt(result.segments),
+                        "srt_text": srt_text,
                     },
                 )
 

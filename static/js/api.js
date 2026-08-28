@@ -46,6 +46,26 @@ export async function selectSrtFile() {
     return res;
 }
 
+export async function runWorkflow(payload) {
+    const res = await fetch('/api/workflows/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Không thể khởi chạy workflow');
+    return data;
+}
+
+export async function validateWorkflow(payload) {
+    const res = await fetch('/api/workflows/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    return res.json();
+}
+
+export async function selectWorkflowOutputDirectory() {
+    return fetch('/api/workflows/select-output-directory', { method: 'POST' });
+}
+
 export async function analyzeUrl(url, cookies_browser) {
     const res = await fetch('/api/analyze', {
         method: 'POST',
@@ -289,4 +309,13 @@ export async function openTranslateJobLocation(batchId, jobId) {
         method: 'POST'
     });
     return res;
+}
+
+export async function retryWorkflow(taskId) {
+    const res = await fetch(`/api/workflows/${taskId}/retry`, {
+        method: 'POST'
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Không thể chạy lại workflow');
+    return data;
 }

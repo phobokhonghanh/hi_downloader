@@ -17,6 +17,10 @@ class TaskStatus(str, Enum):
     CANCELED = "canceled"
 
 
+class TaskConflictError(Exception):
+    pass
+
+
 @dataclass
 class TaskModel:
     task_id: str
@@ -33,6 +37,8 @@ class TaskModel:
     target_dir: Optional[str] = None
     artifacts: List[str] = field(default_factory=list)
     metrics: Dict[str, Any] = field(default_factory=dict)
+    source_key: Optional[str] = None
+    workflow_config: Optional[Dict[str, Any]] = None
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
     cancel_event: threading.Event = field(default_factory=threading.Event)
@@ -55,6 +61,8 @@ class TaskModel:
             "target_dir": self.target_dir,
             "artifacts": list(self.artifacts),
             "metrics": dict(self.metrics),
+            "source_key": self.source_key,
+            "workflow_config": copy.deepcopy(self.workflow_config) if self.workflow_config is not None else None,
             "created_at": self.created_at,
             "updated_at": self.updated_at
         }
@@ -68,6 +76,12 @@ class TaskStore:
 
     def create_task(self, task_id: Optional[str] = None, module_id: str = "default", **kwargs) -> Dict[str, Any]:
         with self._lock:
+            source_key = kwargs.get("source_key")
+            if source_key:
+                for t in self._tasks.values():
+                    if t.source_key == source_key and t.status in (TaskStatus.PENDING, TaskStatus.PROCESSING):
+                        raise TaskConflictError(f"Task with source key '{source_key}' is already pending or processing.")
+
             tid = task_id or str(uuid.uuid4())
             now = time.time()
             task = TaskModel(
@@ -83,6 +97,8 @@ class TaskStore:
                             val = TaskStatus(val)
                         except ValueError:
                             pass
+                    if key == "workflow_config" and val is not None:
+                        val = copy.deepcopy(val)
                     setattr(task, key, val)
             self._tasks[tid] = task
             return task.to_snapshot()
@@ -117,6 +133,8 @@ class TaskStore:
                             val = TaskStatus(val)
                         except ValueError:
                             pass
+                    if key == "workflow_config" and val is not None:
+                        val = copy.deepcopy(val)
                     setattr(task, key, val)
             task.updated_at = time.time()
             return True

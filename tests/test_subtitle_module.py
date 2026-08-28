@@ -3,11 +3,12 @@ import threading
 from core.base_module import ModuleContext
 from modules.subtitle.module import SubtitleModule
 from modules.subtitle.schemas import SubtitleSegment
-
+from unittest.mock import patch
 
 class TestSubtitleModule(unittest.TestCase):
     def setUp(self):
         self.module = SubtitleModule()
+
 
     def test_metadata(self):
         self.assertEqual(self.module.module_id, "subtitle")
@@ -214,6 +215,8 @@ class TestSubtitleModule(unittest.TestCase):
         self.assertEqual(res.metrics["segments"][0]["text"], "Replacement")
 
     def test_run_generate_whisper_success(self):
+        import os
+        import tempfile
         from modules.subtitle.providers import SubtitleProviderResult, SubtitleGenerationConfig
         from unittest.mock import MagicMock
 
@@ -224,17 +227,21 @@ class TestSubtitleModule(unittest.TestCase):
         fake_provider.generate.return_value = fake_result
 
         module = SubtitleModule(whisper_provider=fake_provider)
-        context = ModuleContext(
-            task_id="task_9",
-            params={
-                "action": "generate_whisper",
-                "video_path": "test.mp4",
-                "model": "base",
-                "language": "en",
-                "task": "translate",
-            },
-        )
-        res = module.run(context)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            video_path = os.path.join(temp_dir, "test.mp4")
+            context = ModuleContext(
+                task_id="task_9",
+                params={
+                    "action": "generate_whisper",
+                    "video_path": video_path,
+                    "model": "base",
+                    "language": "en",
+                    "task": "translate",
+                },
+            )
+            res = module.run(context)
+            self.assertEqual(res.output_files, [os.path.join(temp_dir, "test_generated.srt")])
+            self.assertTrue(os.path.isfile(res.output_files[0]))
         self.assertTrue(res.success)
         self.assertEqual(res.metrics["metadata"], {"model": "base"})
         self.assertEqual(len(res.metrics["segments"]), 1)
@@ -243,11 +250,60 @@ class TestSubtitleModule(unittest.TestCase):
 
         fake_provider.generate.assert_called_once()
         called_args, called_kwargs = fake_provider.generate.call_args
-        self.assertEqual(called_args[0], "test.mp4")
+        self.assertEqual(called_args[0], video_path)
         self.assertIsInstance(called_args[1], SubtitleGenerationConfig)
         self.assertEqual(called_args[1].model, "base")
         self.assertEqual(called_args[1].language, "en")
         self.assertEqual(called_args[1].task, "translate")
+
+    def test_run_generate_whisper_overwrite(self):
+        import os
+        import tempfile
+        from modules.subtitle.providers import SubtitleProviderResult
+        from unittest.mock import MagicMock
+
+        fake_result_1 = SubtitleProviderResult(
+            segments=[SubtitleSegment(1, 1000, 2000, "Hello First")], metadata={"model": "base"}
+        )
+        fake_result_2 = SubtitleProviderResult(
+            segments=[SubtitleSegment(1, 1000, 2000, "Hello Rerun")], metadata={"model": "base"}
+        )
+        
+        fake_provider = MagicMock()
+        fake_provider.generate.side_effect = [fake_result_1, fake_result_2]
+
+        module = SubtitleModule(whisper_provider=fake_provider)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            video_path = os.path.join(temp_dir, "test.mp4")
+            
+            # First Run
+            context1 = ModuleContext(
+                task_id="task_run_1",
+                params={"action": "generate_whisper", "video_path": video_path}
+            )
+            res1 = module.run(context1)
+            self.assertTrue(res1.success)
+            expected_srt_path = os.path.join(temp_dir, "test_generated.srt")
+            self.assertEqual(res1.output_files, [expected_srt_path])
+            self.assertTrue(os.path.isfile(expected_srt_path))
+            with open(expected_srt_path, "r", encoding="utf-8") as f:
+                content1 = f.read()
+            self.assertIn("Hello First", content1)
+
+            # Rerun
+            context2 = ModuleContext(
+                task_id="task_run_2",
+                params={"action": "generate_whisper", "video_path": video_path}
+            )
+            res2 = module.run(context2)
+            self.assertTrue(res2.success)
+            # Should overwrite exactly the same file, no test_generated_2.srt
+            self.assertEqual(res2.output_files, [expected_srt_path])
+            self.assertTrue(os.path.isfile(expected_srt_path))
+            with open(expected_srt_path, "r", encoding="utf-8") as f:
+                content2 = f.read()
+            self.assertIn("Hello Rerun", content2)
+            self.assertNotIn("Hello First", content2)
 
     def test_run_generate_whisper_error(self):
         from unittest.mock import MagicMock
@@ -279,6 +335,8 @@ class TestSubtitleModule(unittest.TestCase):
         self.assertEqual(res.error, "Invalid parameters")
 
     def test_whisper_monotonic_milestones(self):
+        import os
+        import tempfile
         from modules.subtitle.providers import SubtitleProviderResult, SubtitleGenerationConfig, WhisperSubtitleProvider
         
         progress_calls = []
@@ -296,12 +354,14 @@ class TestSubtitleModule(unittest.TestCase):
         provider_a = WhisperSubtitleProvider(runner=fake_runner_with_cb)
         module_a = SubtitleModule(whisper_provider=provider_a)
 
-        context_a = ModuleContext(
-            task_id="task_a",
-            params={"action": "generate_whisper", "video_path": "test.mp4"},
-            progress_callback=my_progress_cb
-        )
-        res_a = module_a.run(context_a)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            video_a = os.path.join(temp_dir, "test_a.mp4")
+            context_a = ModuleContext(
+                task_id="task_a",
+                params={"action": "generate_whisper", "video_path": video_a},
+                progress_callback=my_progress_cb
+            )
+            res_a = module_a.run(context_a)
         self.assertTrue(res_a.success)
         # Verify exact, non-duplicated milestones received
         self.assertEqual(progress_calls, [
@@ -318,12 +378,14 @@ class TestSubtitleModule(unittest.TestCase):
         provider_b = WhisperSubtitleProvider(runner=fake_legacy_runner)
         module_b = SubtitleModule(whisper_provider=provider_b)
 
-        context_b = ModuleContext(
-            task_id="task_b",
-            params={"action": "generate_whisper", "video_path": "test.mp4"},
-            progress_callback=my_progress_cb
-        )
-        res_b = module_b.run(context_b)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            video_b = os.path.join(temp_dir, "test_b.mp4")
+            context_b = ModuleContext(
+                task_id="task_b",
+                params={"action": "generate_whisper", "video_path": video_b},
+                progress_callback=my_progress_cb
+            )
+            res_b = module_b.run(context_b)
         self.assertTrue(res_b.success)
         # Milestones generated by the fallback logic
         self.assertEqual(progress_calls, [

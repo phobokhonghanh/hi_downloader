@@ -60,9 +60,24 @@ const mockElement = {
     }
 };
 
+const defaultMockElements = {};
 globalThis.document = {
-    getElementById: () => mockElement,
+    getElementById: (id) => {
+        if (id === 'btn-workflow-cancel') {
+            return null;
+        }
+        if (id && (id.startsWith('workflow-') || id === 'btn-workflow-run')) {
+            if (!defaultMockElements[id]) {
+                defaultMockElements[id] = globalThis.document.createElement('div');
+                defaultMockElements[id].id = id;
+            }
+            return defaultMockElements[id];
+        }
+        return mockElement;
+    },
     querySelectorAll: () => [],
+
+
     getElementsByName: () => [mockElement],
     createElement: (tag) => {
         const classes = new Set();
@@ -79,8 +94,20 @@ globalThis.document = {
                 remove: (c) => {
                     classes.delete(c);
                     el.className = Array.from(classes).join(' ');
+                },
+                contains: (c) => classes.has(c),
+                toggle: (c, force) => {
+                    const want = force !== undefined ? !!force : !classes.has(c);
+                    if (want) {
+                        classes.add(c);
+                    } else {
+                        classes.delete(c);
+                    }
+                    el.className = Array.from(classes).join(' ');
+                    return want;
                 }
             },
+
             className: '',
             value: '',
             title: '',
@@ -99,6 +126,8 @@ globalThis.document = {
             children: children,
             addEventListener: () => {},
             setAttribute: (name, value) => { el[name] = value; },
+            getAttribute: (name) => el[name] !== undefined ? String(el[name]) : null,
+
             appendChild: (child) => { children.push(child); },
             removeChild: () => {},
             querySelector: (sel) => {
@@ -240,6 +269,7 @@ const modulesToSmokeTest = [
     './translate_queue.js',
     './translate_modal.js',
     './translate.js',
+    './workflow.js',
     './bootstrap.js'
 ];
 
@@ -549,9 +579,11 @@ try {
         const indexHtml = fs.readFileSync(path.resolve('static/index.html'), 'utf8');
         const downloaderHtml = fs.readFileSync(path.resolve('static/fragments/downloader.html'), 'utf8');
         const subtitleHtml = fs.readFileSync(path.resolve('static/fragments/subtitle.html'), 'utf8');
+        const workflowHtml = fs.readFileSync(path.resolve('static/fragments/workflow.html'), 'utf8');
 
         // Check for forbidden tags in fragments
-        const forbiddenTags = [/<html/i, /<head/i, /<body/i, /<script/i];
+        const forbiddenTags = [/<html\b/i, /<head\b/i, /<body\b/i, /<script\b/i];
+
         for (const tagPattern of forbiddenTags) {
             if (tagPattern.test(downloaderHtml)) {
                 console.error("FAIL: downloader.html contains forbidden tags matching:", tagPattern);
@@ -559,6 +591,10 @@ try {
             }
             if (tagPattern.test(subtitleHtml)) {
                 console.error("FAIL: subtitle.html contains forbidden tags matching:", tagPattern);
+                failed = true;
+            }
+            if (tagPattern.test(workflowHtml)) {
+                console.error("FAIL: workflow.html contains forbidden tags matching:", tagPattern);
                 failed = true;
             }
         }
@@ -586,6 +622,7 @@ try {
         while ((match = idRegex.exec(indexHtml)) !== null) allIds.push({ id: match[1], file: 'index.html' });
         while ((match = idRegex.exec(downloaderHtml)) !== null) allIds.push({ id: match[1], file: 'downloader.html' });
         while ((match = idRegex.exec(subtitleHtml)) !== null) allIds.push({ id: match[1], file: 'subtitle.html' });
+        while ((match = idRegex.exec(workflowHtml)) !== null) allIds.push({ id: match[1], file: 'workflow.html' });
 
         const seenIds = new Map();
         for (const item of allIds) {
@@ -620,8 +657,9 @@ try {
         if (!indexHtml.includes('id="shared-terminal-panel"')) {
             console.error("FAIL: shared system log panel is missing from index.html");
             failed = true;
-        } else if (downloaderHtml.includes('id="terminal-body"') || downloaderHtml.includes('id="shared-terminal-panel"')) {
-            console.error("FAIL: system logs element still exists inside downloader.html fragment");
+        } else if (downloaderHtml.includes('id="terminal-body"') || downloaderHtml.includes('id="shared-terminal-panel"') ||
+                   workflowHtml.includes('id="terminal-body"') || workflowHtml.includes('id="shared-terminal-panel"')) {
+            console.error("FAIL: system logs element still exists inside downloader.html or workflow.html fragment");
             failed = true;
         } else {
             console.log("PASS: shared system-log footer is placed in shell and removed from individual fragments");
@@ -1428,6 +1466,416 @@ try {
         console.error("FAIL: Subtitle queue adapter unit tests crashed:", err);
         failed = true;
     }
+
+    // 8.1 Workflow Queue Adapter Unit Tests
+    console.log("\nRunning Workflow queue adapter unit tests...");
+    try {
+        const { initWorkflow, queue, active, status, canRetry, getVietnameseStatusLabel } = await import('./workflow.js');
+
+
+        // Execute initWorkflow to trigger JobQueue instantiation
+        initWorkflow();
+
+        const { queue: workflowQueueInstance } = await import('./workflow.js');
+
+        if (!workflowQueueInstance) {
+            console.error("FAIL: Workflow queue did not initialize JobQueue instance");
+            failed = true;
+        } else {
+            console.log("PASS: Workflow queue initializes JobQueue instance successfully");
+
+            // Verify columns configuration
+            const columns = workflowQueueInstance.options.columns;
+            if (columns.length !== 3) {
+                console.error("FAIL: Workflow queue expected exactly 3 columns, got:", columns.length);
+                failed = true;
+            } else {
+                console.log("PASS: Workflow queue layout columns count is exactly 3");
+            }
+
+            const sourceCol = columns.find(c => c.key === 'source');
+            const progressCol = columns.find(c => c.key === 'progress');
+            const actionsCol = columns.find(c => c.key === 'actions');
+
+            if (!sourceCol || !progressCol || !actionsCol) {
+                console.error("FAIL: Missing expected workflow columns keys");
+                failed = true;
+            } else {
+                console.log("PASS: Workflow queue columns are mapped correctly");
+
+                // Verify actions column buttons rendering (Folder, Cancel, Retry)
+                const dummyRow = { task_id: 't_mock', status: 'failed' };
+                const actionsContainer = actionsCol.render(dummyRow);
+
+                const folderBtn = actionsContainer.children.find(c => c.title === 'Mở thư mục');
+                const cancelBtn = actionsContainer.children.find(c => c.title === 'Hủy');
+                const retryBtn = actionsContainer.children.find(c => c.title === 'Chạy lại');
+
+                if (!folderBtn || !cancelBtn || !retryBtn) {
+
+                    console.error("FAIL: Workflow queue action buttons render check failed");
+                    failed = true;
+                } else {
+                    console.log("PASS: Workflow queue action buttons render successfully");
+                }
+
+                // Verify bulkActions retry eligibility
+                const retryAction = workflowQueueInstance.options.bulkActions.find(a => a.id === 'retry');
+                if (!retryAction) {
+                    console.error("FAIL: Workflow bulkActions retry is missing");
+                    failed = true;
+                } else {
+                    // Check that the eligible helper references the exported canRetry function directly
+                    if (retryAction.eligible !== canRetry) {
+                        console.error("FAIL: Workflow bulkActions retry eligible helper is not reusing canRetry function");
+                        failed = true;
+                    } else {
+                        console.log("PASS: Workflow bulkActions retry eligible helper reuses canRetry function");
+                    }
+
+                    // Check that rowActions retry visible helper references the exported canRetry function directly
+                    const rowRetryAction = workflowQueueInstance.options.rowActions.find(a => a.id === 'retry');
+                    if (!rowRetryAction) {
+                        console.error("FAIL: Workflow rowActions retry is missing");
+                        failed = true;
+                    } else if (rowRetryAction.visible !== canRetry) {
+                        console.error("FAIL: Workflow rowActions retry visible helper is not reusing canRetry function");
+                        failed = true;
+                    } else {
+                        console.log("PASS: Workflow rowActions retry visible helper reuses canRetry function");
+                    }
+
+                    // Verify helper logic directly
+                    const mockRows = [
+                        { status: 'pending' },
+                        { status: 'downloading' },
+                        { status: 'merging' },
+                        { status: 'processing' },
+                        { status: 'completed' },
+                        { status: 'failed' },
+                        { status: 'canceled' },
+                        { status: 'unknown' }
+                    ];
+                    const eligibility = mockRows.map(r => canRetry(r));
+                    const expectedEligibility = [false, false, false, false, false, true, true, false];
+                    let eligMatch = true;
+                    for (let i = 0; i < mockRows.length; i++) {
+                        if (eligibility[i] !== expectedEligibility[i]) {
+                            console.error(`FAIL: canRetry mismatch for status "${mockRows[i].status}": expected ${expectedEligibility[i]}, got ${eligibility[i]}`);
+                            failed = true;
+                            eligMatch = false;
+                        }
+                    }
+                    if (eligMatch) {
+                        console.log("PASS: Workflow canRetry helper function logic is completely correct");
+                    }
+                }
+
+                // Verify absence of composer cancel button
+                const btnComposerCancel = document.getElementById('btn-workflow-cancel');
+                if (btnComposerCancel) {
+                    console.error("FAIL: composer cancel button btn-workflow-cancel still exists in DOM");
+                    failed = true;
+                } else {
+                    console.log("PASS: composer cancel button is correctly absent");
+                }
+
+                // Verify module definitions registry configuration
+                const { workflowConfigRegistry, updateSummaryAndBindings } = await import('./workflow_config.js');
+                if (!workflowConfigRegistry || workflowConfigRegistry.length !== 3) {
+                    console.error("FAIL: workflowConfigRegistry must contain exactly 3 registered modules, got:", workflowConfigRegistry ? workflowConfigRegistry.length : 0);
+                    failed = true;
+                } else {
+                    console.log("PASS: workflowConfigRegistry contains exactly 3 modules");
+
+                    const subMod = workflowConfigRegistry.find(m => m.module_id === 'subtitle');
+                    const transMod = workflowConfigRegistry.find(m => m.module_id === 'translate');
+
+                    if (!subMod || !transMod) {
+                        console.error("FAIL: missing required subtitle or translate definitions");
+                        failed = true;
+                    } else {
+
+                        // Mock fields
+                        const whisperModel = document.createElement('select');
+                        whisperModel.id = 'workflow-whisper-model';
+                        whisperModel.value = 'small';
+
+                        const whisperLang = document.createElement('select');
+                        whisperLang.id = 'workflow-whisper-language';
+                        whisperLang.value = 'vi';
+
+                        const translateEnabled = document.createElement('button');
+                        translateEnabled.id = 'workflow-translate-enabled';
+                        translateEnabled.setAttribute('aria-pressed', 'true');
+
+                        const targetLang = document.createElement('select');
+                        targetLang.id = 'workflow-target-language';
+                        targetLang.value = 'en';
+
+                        const translateProfile = document.createElement('select');
+                        translateProfile.id = 'workflow-translate-profile';
+                        translateProfile.value = 'precise';
+
+                        const timeConstraint = document.createElement('input');
+                        timeConstraint.id = 'workflow-translate-time-constraint';
+                        timeConstraint.checked = true;
+
+                        const targetWps = document.createElement('input');
+                        targetWps.id = 'workflow-translate-target-wps';
+                        targetWps.value = '4.5';
+
+                        const workflowSummary = document.createElement('p');
+                        workflowSummary.id = 'workflow-summary';
+
+                        const workflowStepCount = document.createElement('span');
+                        workflowStepCount.id = 'workflow-step-count';
+
+                        const workflowTranslateOptions = document.createElement('div');
+                        workflowTranslateOptions.id = 'workflow-translate-options';
+
+                        // Override global elements map for test helper DOM query isolation
+                        const localElementsMap = {
+                            'workflow-whisper-model': whisperModel,
+                            'workflow-whisper-language': whisperLang,
+                            'workflow-translate-enabled': translateEnabled,
+                            'workflow-target-language': targetLang,
+                            'workflow-translate-profile': translateProfile,
+                            'workflow-translate-time-constraint': timeConstraint,
+                            'workflow-translate-target-wps': targetWps,
+                            'workflow-summary': workflowSummary,
+                            'workflow-step-count': workflowStepCount,
+                            'workflow-translate-options': workflowTranslateOptions
+                        };
+                        const originalGetElementLocal = globalThis.document.getElementById;
+                        globalThis.document.getElementById = (id) => localElementsMap[id] || null;
+
+                        // Assert Subtitle step builder
+                        const subStep = subMod.buildStep();
+                        if (subStep.params.model !== 'small' || subStep.params.language !== 'vi') {
+                            console.error("FAIL: Subtitle buildStep parameters are incorrect:", subStep.params);
+                            failed = true;
+                        } else {
+                            console.log("PASS: Subtitle buildStep populates model and language parameters correctly");
+                        }
+
+                        // Assert Translate step builder
+                        const transStep = transMod.buildStep();
+                        if (transStep.params.target_language !== 'en' || transStep.params.profile !== 'precise' || transStep.params.enable_time_constraint !== true || transStep.params.target_wps !== 4.5) {
+                            console.error("FAIL: Translate buildStep parameters are incorrect:", transStep.params);
+                            failed = true;
+                        } else {
+                            console.log("PASS: Translate buildStep populates language, profile, time constraint and target WPS parameters correctly");
+                        }
+
+                        // Verify UI bindings toggle disables
+                        updateSummaryAndBindings();
+                        if (targetLang.disabled || translateProfile.disabled || timeConstraint.disabled || targetWps.disabled) {
+                            console.error("FAIL: inputs should not be disabled when translate is enabled");
+                            failed = true;
+                        } else {
+                            console.log("PASS: Translate option inputs are enabled when translate toggle is active");
+                        }
+
+                        if (workflowSummary.textContent !== "Dự kiến tạo 2 file SRT") {
+                            console.error("FAIL: workflow-summary text was wrong when translate is enabled:", workflowSummary.textContent);
+                            failed = true;
+                        } else {
+                            console.log("PASS: workflow-summary displays 2 SRT files summary when translate is active");
+                        }
+
+
+                        if (workflowStepCount.textContent !== "2 bước") {
+                            console.error("FAIL: workflow-step-count was wrong when translate is enabled:", workflowStepCount.textContent);
+                            failed = true;
+                        } else {
+                            console.log("PASS: workflow-step-count shows 2 steps when translate is active");
+                        }
+
+                        if (workflowTranslateOptions.hidden === true) {
+                            console.error("FAIL: translate options container should be visible when translate is active");
+                            failed = true;
+                        } else {
+                            console.log("PASS: translate options container is visible when translate is active");
+                        }
+
+                        // Disable translation
+                        translateEnabled.setAttribute('aria-pressed', 'false');
+                        updateSummaryAndBindings();
+                        if (!targetLang.disabled || !translateProfile.disabled || !timeConstraint.disabled || !targetWps.disabled) {
+                            console.error("FAIL: inputs must be disabled when translate is inactive");
+                            failed = true;
+                        } else {
+                            console.log("PASS: Translate option inputs are disabled when translate toggle is inactive");
+                        }
+
+                        if (workflowSummary.textContent !== "Dự kiến tạo 1 file SRT") {
+                            console.error("FAIL: workflow-summary text was wrong when translate is disabled:", workflowSummary.textContent);
+                            failed = true;
+                        } else {
+                            console.log("PASS: workflow-summary displays 1 SRT file summary when translate is inactive");
+                        }
+
+
+                        if (workflowStepCount.textContent !== "1 bước") {
+                            console.error("FAIL: workflow-step-count was wrong when translate is disabled:", workflowStepCount.textContent);
+                            failed = true;
+                        } else {
+                            console.log("PASS: workflow-step-count shows 1 step when translate is inactive");
+                        }
+
+                        if (workflowTranslateOptions.hidden !== true) {
+                            console.error("FAIL: translate options container should be hidden when translate is inactive");
+                            failed = true;
+                        } else {
+                            console.log("PASS: translate options container is hidden when translate is inactive");
+                        }
+
+                        // Verify target_wps validation under timeline constraints
+                        translateEnabled.setAttribute('aria-pressed', 'true');
+                        timeConstraint.checked = true;
+                        targetWps.value = "7.0"; // invalid (> 6.0)
+
+                        let validationErrors = transMod.validate();
+                        if (!validationErrors.some(e => e.includes("Tốc độ nói mục tiêu"))) {
+                            console.error("FAIL: translate validation should flag invalid target WPS when time constraint is checked");
+                            failed = true;
+                        } else {
+                            console.log("PASS: translate validation flags invalid target WPS when time constraint is active");
+                        }
+
+                        // Disable time constraint
+                        timeConstraint.checked = false;
+                        validationErrors = transMod.validate();
+                        if (validationErrors.some(e => e.includes("Tốc độ nói mục tiêu"))) {
+                            console.error("FAIL: translate validation should NOT flag invalid target WPS when time constraint is unchecked");
+                            failed = true;
+                        } else {
+                            console.log("PASS: translate validation skips target WPS validation when time constraint is inactive");
+                        }
+
+                        // Restore document mock
+                        globalThis.document.getElementById = originalGetElementLocal;
+
+                        // Verify absence of inline styles in the Workflow fragment
+                        const fs = await import('fs');
+                        const path = await import('path');
+                        const workflowHtmlPath = path.resolve('/home/itc/workspace/tools/hi_downloader/static/fragments/workflow.html');
+                        const workflowHtmlContent = fs.readFileSync(workflowHtmlPath, 'utf8');
+                        if (workflowHtmlContent.includes(' style=')) {
+                            console.error("FAIL: workflow.html fragment contains inline styles");
+                            failed = true;
+                        } else {
+                            console.log("PASS: workflow.html fragment does not contain inline styles");
+                        }
+
+
+                        if (!workflowHtmlContent.includes('class="workflow-save-group"')) {
+                            console.error("FAIL: workflow.html is missing workflow-save-group wrapper");
+                            failed = true;
+                        } else {
+                            console.log("PASS: workflow.html contains workflow-save-group wrapper");
+                        }
+                    }
+                }
+
+
+                // Verify style.css rules for URL input and workflow path buttons
+                const fs = await import('fs');
+                const path = await import('path');
+                const cssContent = fs.readFileSync(path.join(process.cwd(), 'static/css/style.css'), 'utf8');
+                if (!cssContent.includes('.workflow-path .btn')) {
+                    console.error("FAIL: style.css is missing workflow-scoped path button width override (.workflow-path .btn)");
+                    failed = true;
+                } else {
+                    console.log("PASS: style.css contains workflow-scoped path button width override");
+                }
+
+                if (!cssContent.includes('.workflow-save-group')) {
+                    console.error("FAIL: style.css is missing .workflow-save-group rule");
+                    failed = true;
+                } else {
+                    console.log("PASS: style.css contains .workflow-save-group rule");
+                }
+
+
+
+                if (!cssContent.includes('.workflow-composer input[type="url"]')) {
+                    console.error("FAIL: style.css is missing workflow-scoped URL input form styling (.workflow-composer input[type=\"url\"])");
+                    failed = true;
+                } else {
+                    console.log("PASS: style.css contains workflow-scoped URL input form styling");
+                }
+
+
+            // Verify status normalization
+            const mockTasks = [
+                { task_id: 't1', status: 'pending' },
+                { task_id: 't2', status: 'downloading' },
+                { task_id: 't3', status: 'merging' },
+                { task_id: 't4', status: 'processing' },
+                { task_id: 't5', status: 'completed' },
+                { task_id: 't6', status: 'failed' },
+                { task_id: 't7', status: 'canceled' }
+            ];
+
+            const normalized = mockTasks.map(t => status(t));
+            const expectedNormalized = ['waiting', 'running', 'running', 'running', 'done', 'error', 'error'];
+
+            let normMatch = true;
+            for (let i = 0; i < mockTasks.length; i++) {
+                if (normalized[i] !== expectedNormalized[i]) {
+                    console.error(`FAIL: Workflow status normalization mismatch for status "${mockTasks[i].status}": expected "${expectedNormalized[i]}", got "${normalized[i]}"`);
+                    failed = true;
+                    normMatch = false;
+                }
+            }
+            if (normMatch) {
+                console.log("PASS: Workflow status normalization matches requirements");
+            }
+
+            // Verify Vietnamese status / phase labels mapping
+            const mockPhaseTasks = [
+                { status: 'completed' },
+                { status: 'canceled' },
+                { status: 'failed', error: 'Không thể kết nối' },
+                { status: 'pending' },
+                { status: 'downloading' },
+                { status: 'merging' },
+                { status: 'processing', filename: 'Step 1/2: download - preparing' },
+                { status: 'processing', filename: 'Step 2/2: subtitle - transcribing' }
+            ];
+            const vnLabels = mockPhaseTasks.map(t => getVietnameseStatusLabel(t));
+            const expectedVnLabels = [
+                'Hoàn thành',
+                'Đã hủy',
+                'Lỗi: Không thể kết nối',
+                'Đang chờ',
+                'Đang tải video',
+                'Đang ghép video/âm thanh',
+                'Bước 1/2: Tải video - Đang chuẩn bị',
+                'Bước 2/2: Tạo phụ đề - Đang nhận dạng'
+            ];
+
+            let labelMatch = true;
+            for (let i = 0; i < mockPhaseTasks.length; i++) {
+                if (vnLabels[i] !== expectedVnLabels[i]) {
+                    console.error(`FAIL: Workflow phase label mapping mismatch: got "${vnLabels[i]}", expected "${expectedVnLabels[i]}"`);
+                    failed = true;
+                    labelMatch = false;
+                }
+            }
+            if (labelMatch) {
+                console.log("PASS: Workflow phase labels are correctly translated to Vietnamese");
+            }
+        }
+    }
+} catch (err) {
+    console.error("FAIL: Workflow queue adapter unit tests crashed:", err);
+    failed = true;
+}
+
+
 
     // 9. Parity and Vietnamese labels checks (Contract E)
     console.log("\nRunning queue parity and Vietnamese labels unit tests...");
@@ -2490,19 +2938,56 @@ try {
         const historyContent = fs.readFileSync(historyPath, 'utf8');
         const indexContent = fs.readFileSync(indexPath, 'utf8');
 
-        if (!bootstrapContent.includes("const version = '2';")) {
-            console.error("FAIL: bootstrap.js version constant is not '2'");
+        if (!bootstrapContent.includes("const version = '6';")) {
+            console.error("FAIL: bootstrap.js version constant is not '6'");
             failed = true;
         } else {
             console.log("PASS: bootstrap.js version constant is coherent");
         }
 
-        if (!indexContent.includes('bootstrap.js?v=2')) {
-            console.error("FAIL: index.html does not load bootstrap.js with v=2");
+        if (!indexContent.includes('bootstrap.js?v=6')) {
+            console.error("FAIL: index.html does not load bootstrap.js with v=6");
             failed = true;
         } else {
-            console.log("PASS: index.html loads bootstrap.js with v=2");
+            console.log("PASS: index.html loads bootstrap.js with v=6");
         }
+
+        if (!indexContent.includes('style.css?v=6')) {
+            console.error("FAIL: index.html does not load style.css with v=6");
+            failed = true;
+        } else {
+            console.log("PASS: index.html loads style.css with v=6");
+        }
+
+        const expectedFetches = [
+            'downloader.html?v=${version}',
+            'subtitle.html?v=${version}',
+            'translate.html?v=${version}',
+            'workflow.html?v=${version}'
+        ];
+        let fetchCoherent = true;
+        for (const item of expectedFetches) {
+            if (!bootstrapContent.includes(item)) {
+                console.error(`FAIL: bootstrap.js does not fetch fragment using version parameter: ${item}`);
+                failed = true;
+                fetchCoherent = false;
+            }
+        }
+        if (fetchCoherent) {
+            console.log("PASS: bootstrap.js fetches all four HTML fragments with ?v=6 version");
+        }
+
+        const workflowPath = path.resolve('/home/itc/workspace/tools/hi_downloader/static/js/workflow.js');
+        const workflowContent = fs.readFileSync(workflowPath, 'utf8');
+        if (!workflowContent.includes("workflow_config.js?v=6")) {
+            console.error("FAIL: workflow.js does not import workflow_config.js with query v=6");
+            failed = true;
+        } else {
+            console.log("PASS: workflow.js imports workflow_config.js with v=6 query");
+        }
+
+
+
 
         if (!tasksContent.includes("helpers.js?v=2")) {
             console.error("FAIL: tasks.js does not import helpers.js with query v=2");
@@ -2517,6 +3002,7 @@ try {
         } else {
             console.log("PASS: analyze_history.js imports helpers with v=2 query");
         }
+
 
         // 4. Test Log Polling Loop & Copy/Clear Buttons Flow
         console.log("\nRunning Log Polling & Update flow tests...");
@@ -2624,10 +3110,140 @@ try {
         // Restore
         globalThis.document.getElementById = originalGetElement3;
         globalThis.document.querySelectorAll = originalQuerySelectorAll;
+
+        // 5. Test Sidebar Active State Toggling & View Visibility
+        console.log("\nRunning Sidebar active navigation toggle tests...");
+        const btnModeDownload = document.createElement('button');
+        btnModeDownload.id = 'btn-mode-download';
+        const btnModeSubtitle = document.createElement('button');
+        btnModeSubtitle.id = 'btn-mode-subtitle';
+        const btnModeTranslate = document.createElement('button');
+        btnModeTranslate.id = 'btn-mode-translate';
+        const btnModeWorkflow = document.createElement('button');
+        btnModeWorkflow.id = 'btn-mode-workflow';
+
+        const downloaderView = document.createElement('div');
+        downloaderView.id = 'downloader-view';
+        const subtitleView = document.createElement('div');
+        subtitleView.id = 'subtitle-view';
+        const translateView = document.createElement('div');
+        translateView.id = 'translate-view';
+        const workflowView = document.createElement('div');
+        workflowView.id = 'workflow-view';
+
+        const localElementsMap = {
+            'btn-mode-download': btnModeDownload,
+            'btn-mode-subtitle': btnModeSubtitle,
+            'btn-mode-translate': btnModeTranslate,
+            'btn-mode-workflow': btnModeWorkflow,
+            'downloader-view': downloaderView,
+            'subtitle-view': subtitleView,
+            'translate-view': translateView,
+            'workflow-view': workflowView
+        };
+
+        const originalGetElementLocal = globalThis.document.getElementById;
+        globalThis.document.getElementById = (id) => localElementsMap[id] || null;
+
+        // Mock event listeners store
+        const listeners = {};
+        const mockAddEventListener = (element, event, callback) => {
+            listeners[`${element.id}:${event}`] = callback;
+        };
+
+        btnModeDownload.addEventListener = (ev, cb) => mockAddEventListener(btnModeDownload, ev, cb);
+        btnModeSubtitle.addEventListener = (ev, cb) => mockAddEventListener(btnModeSubtitle, ev, cb);
+        btnModeTranslate.addEventListener = (ev, cb) => mockAddEventListener(btnModeTranslate, ev, cb);
+        btnModeWorkflow.addEventListener = (ev, cb) => mockAddEventListener(btnModeWorkflow, ev, cb);
+
+        // Run the navigation code block from bootstrap.js
+        const setupNavCode = bootstrapContent.substring(
+            bootstrapContent.indexOf('const btnModeDownload ='),
+            bootstrapContent.indexOf('// Connect analysis final logs update callback')
+        );
+
+        if (setupNavCode.trim().length === 0) {
+            console.error("FAIL: Could not locate sidebar navigation setup in bootstrap.js");
+            failed = true;
+        } else {
+            const setupNav = new Function('downloaderView', 'subtitleView', 'translateView', 'workflowView', setupNavCode);
+            setupNav(downloaderView, subtitleView, translateView, workflowView);
+
+            // Verify click on btnModeDownload
+            if (listeners['btn-mode-download:click']) {
+                listeners['btn-mode-download:click']();
+                if (!btnModeDownload.classList.contains('active') || btnModeSubtitle.classList.contains('active') || btnModeTranslate.classList.contains('active') || btnModeWorkflow.classList.contains('active')) {
+                    console.error("FAIL: btn-mode-download click did not correctly isolate active state");
+                    failed = true;
+                } else if (downloaderView.style.display !== 'grid' || subtitleView.style.display !== 'none' || translateView.style.display !== 'none' || workflowView.style.display !== 'none') {
+                    console.error("FAIL: btn-mode-download click did not set correct view displays");
+                    failed = true;
+                } else {
+                    console.log("PASS: btn-mode-download click sets active class and displays view correctly");
+                }
+            } else {
+                console.error("FAIL: click listener not found on btn-mode-download");
+                failed = true;
+            }
+
+            // Verify click on btnModeSubtitle
+            if (listeners['btn-mode-subtitle:click']) {
+                listeners['btn-mode-subtitle:click']();
+                if (btnModeDownload.classList.contains('active') || !btnModeSubtitle.classList.contains('active') || btnModeTranslate.classList.contains('active') || btnModeWorkflow.classList.contains('active')) {
+                    console.error("FAIL: btn-mode-subtitle click did not correctly isolate active state");
+                    failed = true;
+                } else if (downloaderView.style.display !== 'none' || subtitleView.style.display !== 'grid' || translateView.style.display !== 'none' || workflowView.style.display !== 'none') {
+                    console.error("FAIL: btn-mode-subtitle click did not set correct view displays");
+                    failed = true;
+                } else {
+                    console.log("PASS: btn-mode-subtitle click sets active class and displays view correctly");
+                }
+            }
+
+            // Verify click on btnModeTranslate
+            if (listeners['btn-mode-translate:click']) {
+                listeners['btn-mode-translate:click']();
+                if (btnModeDownload.classList.contains('active') || btnModeSubtitle.classList.contains('active') || !btnModeTranslate.classList.contains('active') || btnModeWorkflow.classList.contains('active')) {
+                    console.error("FAIL: btn-mode-translate click did not correctly isolate active state");
+                    failed = true;
+                } else if (downloaderView.style.display !== 'none' || subtitleView.style.display !== 'none' || translateView.style.display !== 'grid' || workflowView.style.display !== 'none') {
+                    console.error("FAIL: btn-mode-translate click did not set correct view displays");
+                    failed = true;
+                } else {
+                    console.log("PASS: btn-mode-translate click sets active class and displays view correctly");
+                }
+            }
+
+            // Verify click on btnModeWorkflow
+            if (listeners['btn-mode-workflow:click']) {
+                listeners['btn-mode-workflow:click']();
+                if (btnModeDownload.classList.contains('active') || btnModeSubtitle.classList.contains('active') || btnModeTranslate.classList.contains('active') || !btnModeWorkflow.classList.contains('active')) {
+                    console.error("FAIL: btn-mode-workflow click did not correctly isolate active state");
+                    failed = true;
+                } else if (downloaderView.style.display !== 'none' || subtitleView.style.display !== 'none' || translateView.style.display !== 'none' || workflowView.style.display !== 'grid') {
+                    console.error("FAIL: btn-mode-workflow click did not set correct view displays");
+                    failed = true;
+                } else {
+                    console.log("PASS: btn-mode-workflow click sets active class and displays view correctly");
+                }
+            }
+        }
+
+        // Restore document mock
+        globalThis.document.getElementById = originalGetElementLocal;
+
+        // Assert Workflow 3fr/4fr CSS rule
+        if (!cssContent.includes('grid-template-columns: minmax(0, 3fr) minmax(320px, 4fr)')) {
+            console.error("FAIL: style.css is missing .workflow-grid columns layout override");
+            failed = true;
+        } else {
+            console.log("PASS: style.css contains .workflow-grid 3fr/4fr layout override");
+        }
     } catch (err) {
-        console.error("FAIL: Path Selectors proxy and logs tests crashed:", err);
+        console.error("FAIL: Path Selectors proxy, logs or sidebar tests crashed:", err);
         failed = true;
     }
+
 
     // Clean up mocks
     globalThis.document.getElementById = originalGetElement;

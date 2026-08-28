@@ -17,8 +17,10 @@ continue with the repository workflow and report the missing local instruction.
 4. Inspect only the source needed for the user's current request.
 5. Run `herdr agent list` before delegating and resolve the executor by its live
    pane ID when its display name cannot be used as a prompt target.
-6. Select the lightest appropriate workflow: ask, small task, or plan followed by
-   an approved execute contract.
+6. Select the lightest appropriate workflow: ask, small task, or a
+   controller-authored plan grilled by the executor followed by an approved
+   execute contract. The executor must not author the implementation plan for a
+   medium or large task.
 
 ## Important storage note
 

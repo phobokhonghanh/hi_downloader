@@ -7,6 +7,7 @@ import logging
 import subprocess
 import json
 import threading
+import copy
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Query, Request
@@ -15,7 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
-from core.task_store import TaskStore, TaskStatus
+from core.task_store import TaskStore, TaskStatus, TaskConflictError
 from modules.downloader.schemas import AnalyzeRequestData, DownloadRequestData
 from modules.downloader.service import DownloaderService
 from core.module_registry import ModuleRegistry
@@ -250,6 +251,8 @@ PROXY_PASS = os.getenv("PROXY_PASS", "")
 MAX_CONCURRENT_DOWNLOADS = int(os.getenv("MAX_CONCURRENT_DOWNLOADS", "2"))
 
 executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_DOWNLOADS)
+# Workflows intentionally run one at a time: subsequent videos remain queued.
+workflow_executor = ThreadPoolExecutor(max_workers=1)
 task_store = TaskStore()
 
 config_downloader = {
@@ -359,8 +362,9 @@ app.include_router(translate_router)
 def app_shutdown():
     subtitle_batch_service.shutdown()
     translate_batch_service.shutdown()
+    workflow_executor.shutdown(wait=False)
 
-workflow_engine = WorkflowEngine(task_store=task_store, module_registry=module_registry)
+workflow_engine = WorkflowEngine(task_store=task_store, module_registry=module_registry, logger=log_user)
 
 
 def reset_run_environment_if_idle():
@@ -925,8 +929,43 @@ class WorkflowRunRequest(BaseModel):
     initial_inputs: list[str] = Field(default_factory=list)
 
 
+def workflow_preflight(req: WorkflowRunRequest) -> list[str]:
+    errors = []
+    if len(req.initial_inputs) > 1:
+        errors.append("Workflow chỉ nhận một file video.")
+    pipeline_input = any(step.params.get("use_input_file") for step in req.steps)
+    if req.initial_inputs and pipeline_input and (not os.path.isfile(req.initial_inputs[0]) or os.path.islink(req.initial_inputs[0])):
+        errors.append("File video nguồn không tồn tại hoặc không hợp lệ.")
+    download_steps = [step for step in req.steps if step.module_id == "downloader" and step.params.get("action") == "download"]
+    workflow_source_steps = any(step.params.get("use_input_file") for step in req.steps)
+    if workflow_source_steps and not req.initial_inputs and len(download_steps) != 1:
+        errors.append("Cần chọn một file video hoặc nhập một URL video.")
+    if download_steps:
+        url = download_steps[0].params.get("url", "").strip()
+        if not url or BILIBILI_SPACE_DOMAIN in url:
+            errors.append("Workflow chỉ hỗ trợ một URL video Bilibili.")
+        if not req.output_dir:
+            errors.append("Cần chọn thư mục lưu video tải về.")
+    if req.output_dir and download_steps:
+        try:
+            os.makedirs(req.output_dir, exist_ok=True)
+            if not os.access(req.output_dir, os.W_OK): errors.append("Không có quyền ghi vào thư mục đầu ra.")
+        except OSError:
+            errors.append("Không thể tạo hoặc truy cập thư mục đầu ra.")
+    if any(step.module_id == "translate" for step in req.steps) and not translate_credential_store.resolve():
+        errors.append("Gemini API key chưa được cấu hình.")
+    return errors
+
+
+@app.post("/api/workflows/validate")
+def validate_workflow(req: WorkflowRunRequest):
+    errors = workflow_preflight(req)
+    return {"valid": not errors, "errors": errors}
+
+
 def run_workflow_task(task_id: str, config: WorkflowConfig):
     try:
+        log_user(f"Workflow {task_id} bắt đầu xử lý.")
         res = workflow_engine.execute_workflow(task_id, config)
         serialized_res = res.to_dict()
         
@@ -945,12 +984,13 @@ def run_workflow_task(task_id: str, config: WorkflowConfig):
                 task_store.update_task(task_id, status=TaskStatus.FAILED, error=res.error or "Workflow failed")
             else:
                 task_store.update_task(task_id, status=TaskStatus.COMPLETED, progress=100.0, artifacts=res.final_outputs)
+        log_user(f"Workflow {task_id} {'đã hoàn tất' if res.success else 'không hoàn tất'}.", "SUCCESS" if res.success else "WARNING")
     except Exception as e:
         task_store.update_task(task_id, status=TaskStatus.FAILED, error=str(e))
+        log_user(f"Workflow {task_id} lỗi: {e}", "ERROR")
 
 
-@app.post("/api/workflows/run")
-def run_workflow(req: WorkflowRunRequest):
+def prepare_workflow_execution(req: WorkflowRunRequest):
     # validate workflow name
     if not req.name or not req.name.strip():
         raise HTTPException(status_code=400, detail="Tên workflow không được để trống")
@@ -992,16 +1032,21 @@ def run_workflow(req: WorkflowRunRequest):
             on_error=step.on_error
         ))
 
+    if errors := workflow_preflight(req):
+        raise HTTPException(status_code=400, detail=" ".join(errors))
+
     # Resolve workflow_id
     wf_id = req.workflow_id or f"wf_{uuid.uuid4().hex[:8]}"
-    task_id = f"wf_{uuid.uuid4().hex[:8]}"
 
-    # Resolve output directory
-    base_dir = os.path.abspath(req.output_dir) if req.output_dir else load_cached_dir()
+    # Workflow artifacts are local siblings, not download-run directories.
+    if req.output_dir:
+        base_dir = os.path.abspath(req.output_dir)
+    elif req.initial_inputs:
+        base_dir = os.path.dirname(os.path.abspath(req.initial_inputs[0]))
+    else:
+        base_dir = load_cached_dir()
     os.makedirs(base_dir, exist_ok=True)
-    save_cached_dir(base_dir)
-
-    target_dir = get_run_target_dir(base_dir)
+    target_dir = base_dir
 
     # Convert to WorkflowConfig
     config = WorkflowConfig(
@@ -1012,18 +1057,109 @@ def run_workflow(req: WorkflowRunRequest):
         initial_inputs=req.initial_inputs
     )
 
+    # Same source is blocked only while active; unrelated sources are queued.
+    source_key = None
+    if req.initial_inputs:
+        source_key = f"file:{os.path.normpath(os.path.abspath(req.initial_inputs[0]))}"
+    else:
+        download_step = next((step for step in steps_config if step.module_id == "downloader" and step.params.get("action") == "download"), None)
+        if download_step:
+            source_url = download_step.params.get("url", "").strip()
+            if BILIBILI_SPACE_DOMAIN in source_url:
+                raise HTTPException(status_code=400, detail="Workflow chỉ hỗ trợ một URL video, không hỗ trợ URL kênh.")
+            source_key = f"url:{downloader_service.clean_url(source_url)}"
+
+    # Defensive request snapshot to persist
+    workflow_config = {
+        "workflow_id": wf_id,
+        "name": req.name,
+        "steps": [
+            {
+                "step_id": s.step_id,
+                "module_id": s.module_id,
+                "params": copy.deepcopy(s.params),
+                "on_error": s.on_error
+            } for s in req.steps
+        ],
+        "output_dir": target_dir,
+        "initial_inputs": list(req.initial_inputs)
+    }
+
+    return wf_id, config, source_key, workflow_config
+
+
+@app.post("/api/workflows/run")
+def run_workflow(req: WorkflowRunRequest):
+    wf_id, config, source_key, workflow_config = prepare_workflow_execution(req)
+    task_id = f"wf_{uuid.uuid4().hex[:8]}"
+
     # create task in TaskStore with module_id="workflow"
-    task_store.create_task(
-        task_id=task_id,
-        module_id="workflow",
-        filename=req.name,
-        target_dir=target_dir
-    )
+    try:
+        task_store.create_task(
+            task_id=task_id,
+            module_id="workflow",
+            filename=req.name,
+            target_dir=config.output_dir,
+            source_key=source_key,
+            workflow_config=workflow_config
+        )
+    except TaskConflictError:
+        raise HTTPException(
+            status_code=409,
+            detail="Workflow cho video nguồn này đang chạy hoặc đang chờ xử lý."
+        )
 
     # Submit execution to background executor
-    executor.submit(run_workflow_task, task_id, config)
+    workflow_executor.submit(run_workflow_task, task_id, config)
 
     return {"task_id": task_id, "workflow_id": wf_id, "status": "pending"}
+
+
+@app.post("/api/workflows/{task_id}/retry")
+def retry_workflow(task_id: str):
+    task = task_store.get_task(task_id)
+    if not task or task.get("module_id") != "workflow":
+        raise HTTPException(status_code=404, detail="Task không tồn tại hoặc không phải là workflow")
+
+    status = task.get("status")
+    if status not in ("failed", "canceled"):
+        raise HTTPException(
+            status_code=409,
+            detail="Workflow đang hoạt động hoặc đã hoàn thành thành công"
+        )
+
+
+    stored_config = task.get("workflow_config")
+    if not stored_config:
+        raise HTTPException(
+            status_code=400,
+            detail="Không tìm thấy cấu hình gốc của workflow để chạy lại."
+        )
+
+    # Reconstruct request from stored config
+    req = WorkflowRunRequest(**stored_config)
+    wf_id, config, source_key, workflow_config = prepare_workflow_execution(req)
+
+    new_task_id = f"wf_{uuid.uuid4().hex[:8]}"
+    try:
+        task_store.create_task(
+            task_id=new_task_id,
+            module_id="workflow",
+            filename=req.name,
+            target_dir=config.output_dir,
+            source_key=source_key,
+            workflow_config=workflow_config
+        )
+    except TaskConflictError:
+        raise HTTPException(
+            status_code=409,
+            detail="Workflow cho video nguồn này đang chạy hoặc đang chờ xử lý."
+        )
+
+    workflow_executor.submit(run_workflow_task, new_task_id, config)
+
+    return {"task_id": new_task_id, "workflow_id": wf_id, "status": "pending"}
+
 
 
 # Display/Xauthority prober helper for Linux
@@ -1325,6 +1461,16 @@ def select_directory():
                 "message": path_or_err or "Không thể kết nối đến giao diện màn hình Desktop của hệ điều hành."
             }
         )
+
+
+@app.post("/api/workflows/select-output-directory")
+def select_workflow_output_directory():
+    status, path_or_err = run_gui_folder_dialog(title="Chon thu muc luu workflow")
+    if status == "success":
+        return {"status": "success", "path": path_or_err}
+    if status == "canceled":
+        return {"status": "canceled", "path": None}
+    return JSONResponse(status_code=500, content={"status": "error", "message": path_or_err})
 
 
 @app.post("/api/subtitle/select-video-folder")

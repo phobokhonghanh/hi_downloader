@@ -595,6 +595,56 @@ class DownloaderService:
                 self.task_store.update_task(task_id, status=TaskStatus.FAILED, error=err_details)
             self._log_user(f"Tải thất bại sau {max_attempts} lần thử: {last_error_msg}", level="ERROR")
 
+    def download_for_workflow(self, url: str, cookies_browser: str, quality: str,
+                              target_dir: str, cancel_event: threading.Event,
+                              progress_callback=None) -> str:
+        """Download one video in the workflow worker and return its final artifact."""
+        clean_url = self.clean_url(url)
+        if BILIBILI_SPACE_DOMAIN in clean_url:
+            raise ValueError("Workflow chỉ hỗ trợ một video, không hỗ trợ URL kênh.")
+        if cancel_event.is_set():
+            raise ValueError("CANCELED")
+
+        start_time = time.time()
+        finished_files: List[str] = []
+
+        def hook(data):
+            if cancel_event.is_set():
+                raise ValueError("CANCELED")
+            status = data.get("status")
+            if status == "downloading" and progress_callback:
+                total = data.get("total_bytes") or data.get("total_bytes_estimate") or 0
+                pct = (data.get("downloaded_bytes", 0) / total * 100) if total else 0
+                progress_callback(pct, "Đang tải video")
+            elif status == "finished":
+                filename = data.get("filename")
+                if filename:
+                    finished_files.append(filename)
+                if progress_callback:
+                    progress_callback(99.0, "Đang hoàn tất video")
+
+        fmt = "bestvideo+bestaudio/best" if self.check_ffmpeg() else "best"
+        if quality != "best" and self.check_ffmpeg():
+            fmt = f"bestvideo[height<={quality}]+bestaudio/best"
+        exe_dir = self.config.get("exe_dir", "")
+        opts = {
+            "outtmpl": os.path.join(target_dir, "%(uploader)s/%(id)s_%(title)s.%(ext)s"),
+            "format": fmt, "noplaylist": True, "progress_hooks": [hook],
+            "ffmpeg_location": exe_dir or None, "logger": YDLLogger(),
+        }
+        if cookies_browser:
+            opts["cookiesfrombrowser"] = (cookies_browser,)
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(clean_url, download=True)
+            requested = (info or {}).get("requested_downloads") or []
+            candidates = [item.get("filepath") for item in requested if item.get("filepath")] + finished_files
+        existing = next((path for path in reversed(candidates) if path and os.path.isfile(path)), None)
+        if not existing:
+            raise RuntimeError("Không xác định được file video đã tải.")
+        if progress_callback:
+            progress_callback(100.0, f"Đã tải video trong {round(time.time() - start_time, 1)}s")
+        return existing
+
     def space_download_manager(self, master_task_id: str, url: str, cookies_browser: str, quality: str, page_start: int, page_end: int, target_dir: str, max_videos: Optional[int] = None):
         start_time = time.time()
         if self.task_store:

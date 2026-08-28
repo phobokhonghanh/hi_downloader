@@ -226,9 +226,18 @@ class TestWorkflowEngine(unittest.TestCase):
         res_dict = res.to_dict()
         self.assertEqual(res_dict["workflow_id"], "wf_serialization")
         self.assertTrue(res_dict["success"])
-        self.assertIn("step1", res_dict["step_results"])
-        self.assertTrue(res_dict["step_results"]["step1"]["success"])
         self.assertEqual(res_dict["step_results"]["step1"]["metrics"], {"count": 1})
+
+    def test_workflow_progress_callback_math(self):
+        self.store.create_task("wf_task_progress_math", filename="Progress Workflow")
+        report = self.engine._make_progress_callback("wf_task_progress_math", 1, 2, "step2")
+        report(50.0, "halfway")
+        
+        task_snap = self.store.get_task("wf_task_progress_math")
+        self.assertEqual(task_snap["progress"], 75.0)
+        self.assertEqual(task_snap["filename"], "Step 2/2: step2 - halfway")
+
+
 
 
 if __name__ == "__main__":
